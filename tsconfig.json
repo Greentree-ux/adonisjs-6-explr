@@ -1,0 +1,15 @@
+{
+  "extends": "@adonisjs/tsconfig/tsconfig.app.json",
+  "compilerOptions": {
+    "rootDir": "./",
+    "outDir": "./build",
+    "paths": {
+      "@ioc:Adonis/*": ["./node_modules/@adonisjs/*"]
+    },
+    "typeRoots": [
+      "./node_modules/@types",
+      "./app/exceptions/types"
+    ],
+    "types": ["node"]
+  }
+}
