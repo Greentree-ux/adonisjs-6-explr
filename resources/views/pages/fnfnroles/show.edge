@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="{{ asset('resources/css/app.css') }}">
+    <script src="{{ asset('assets/app-BX0J_vn-.js') }}"></script>
+    <title>
+      AdonisJS - A fully featured web framework for Node.js
+    </title>
+  </head>
+  <body>
+    @include('pages/partials/nav')
+    <h1>Tasksets: {{ fnfnrole.fn_name }} - {{ fnfnrole.role_name }}</h1>
+    <div class="list-container">
+        <table>
+            <tr>
+            <th>Fn ID</th>
+            <th>Role No</th>
+            <th>SubFn ID</th>
+            <th>SubFn Name</th>
+            <th>Sub2Fn Ord</th>
+            <th>Sub Sub Fn Name</th>
+            <th>Taskset</th>
+            </tr>
+            @each(roletaskset in roletasksets)
+            <tr>
+              <td>{{ roletaskset.fnid }}</td>
+              <td>{{ roletaskset.roleno }}</td>
+              <td>{{ roletaskset.subfnid }}</td>
+              <td>{{ roletaskset.subfn_name }}</td>
+              <td>{{ roletaskset.sub2fnord }}</td>
+              <td>{{ roletaskset.sub_sub_fn_name }}</td>
+              <td>{{ roletaskset.taskset }}</td>
+            </tr>
+            @endeach
+        </table>
+    </div>
+    <p>
+      For more information, visit the <a href="https://orgcap.co">official website</a>.
+    </p>
+  </body>
+</html>

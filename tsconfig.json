@@ -4,7 +4,8 @@
     "rootDir": "./",
     "outDir": "./build",
     "paths": {
-      "@ioc:Adonis/*": ["./node_modules/@adonisjs/*"]
+      "@ioc:Adonis/*": ["./node_modules/@adonisjs/*"],
+      "@dimerapp/*": ["./node_modules/@dimerapp/*"]
     },
     "typeRoots": [
       "./node_modules/@types",
