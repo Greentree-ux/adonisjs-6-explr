@@ -1,0 +1,255 @@
+.roleskills-show-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+
+  .back-link {
+    margin-bottom: 1.5rem;
+
+    a {
+      color: #0066cc;
+      text-decoration: none;
+      font-size: 0.95rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .loading {
+    text-align: center;
+    padding: 3rem;
+    color: #666;
+    font-size: 1.1rem;
+  }
+
+  .error {
+    background-color: #fee;
+    border: 1px solid #fcc;
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+
+    p {
+      color: #c00;
+      margin: 0 0 1rem 0;
+      font-size: 1rem;
+    }
+
+    button {
+      background-color: #c00;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.95rem;
+
+      &:hover {
+        background-color: #a00;
+      }
+    }
+  }
+
+  .role-details {
+    .role-header {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      color: white;
+      padding: 2rem;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+
+      h1 {
+        font-size: 2rem;
+        margin: 0 0 0.5rem 0;
+        font-weight: 700;
+      }
+
+      h2 {
+        font-size: 1.5rem;
+        margin: 0 0 1rem 0;
+        font-weight: 400;
+        opacity: 0.9;
+      }
+
+      .role-meta {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .badge {
+        background-color: rgba(255, 255, 255, 0.2);
+        padding: 0.35rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+    }
+
+    .skills-section {
+      h3 {
+        font-size: 1.5rem;
+        margin: 0 0 1.5rem 0;
+        color: #333;
+      }
+
+      .no-data {
+        text-align: center;
+        color: #666;
+        padding: 3rem;
+        background-color: #f9f9f9;
+        border-radius: 4px;
+        font-size: 1rem;
+      }
+
+      .skills-categories {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+
+        .category-group {
+          background-color: white;
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          overflow: hidden;
+
+          .category-header {
+            background-color: #f8f9fa;
+            padding: 1rem 1.5rem;
+            border-left: 4px solid #6c757d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+
+            h4 {
+              margin: 0;
+              font-size: 1.25rem;
+              color: #333;
+              font-weight: 600;
+            }
+
+            .skills-count {
+              font-size: 0.875rem;
+              color: #6c757d;
+              font-weight: 500;
+              background-color: #e9ecef;
+              padding: 0.25rem 0.75rem;
+              border-radius: 12px;
+            }
+          }
+
+          .skills-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+
+            .skill-item {
+              display: flex;
+              padding: 1rem 1.5rem;
+              border-bottom: 1px solid #e9ecef;
+              transition: background-color 0.2s;
+
+              &:hover {
+                background-color: #f8f9fa;
+              }
+
+              &:last-child {
+                border-bottom: none;
+              }
+
+              .skill-order {
+                flex-shrink: 0;
+                width: 40px;
+                height: 40px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 700;
+                font-size: 0.95rem;
+                margin-right: 1rem;
+              }
+
+              .skill-content {
+                flex: 1;
+                display: flex;
+                align-items: center;
+
+                p {
+                  margin: 0;
+                  color: #495057;
+                  font-size: 1rem;
+                  line-height: 1.6;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Responsive design
+@media (max-width: 768px) {
+  .roleskills-show-container {
+    padding: 1rem;
+
+    .role-details {
+      .role-header {
+        padding: 1.5rem;
+
+        h1 {
+          font-size: 1.5rem;
+        }
+
+        h2 {
+          font-size: 1.25rem;
+        }
+      }
+
+      .skills-section {
+        .skills-categories {
+          gap: 1.5rem;
+
+          .category-group {
+            .category-header {
+              padding: 0.75rem 1rem;
+              flex-direction: column;
+              align-items: flex-start;
+              gap: 0.5rem;
+
+              h4 {
+                font-size: 1.1rem;
+              }
+            }
+
+            .skills-list {
+              .skill-item {
+                padding: 0.75rem 1rem;
+                flex-direction: column;
+                align-items: flex-start;
+
+                .skill-order {
+                  margin-bottom: 0.5rem;
+                  margin-right: 0;
+                }
+
+                .skill-content p {
+                  font-size: 0.95rem;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

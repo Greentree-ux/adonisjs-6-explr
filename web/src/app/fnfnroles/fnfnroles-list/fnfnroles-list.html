@@ -1,0 +1,41 @@
+<div class="fnfnroles-list-container">
+  <h1>Function Roles</h1>
+
+  <!-- Loading state -->
+  @if (loading) {
+    <div class="loading">
+      <p>Loading roles...</p>
+    </div>
+  }
+
+  <!-- Error state -->
+  @if (error) {
+    <div class="error">
+      <p>{{ error }}</p>
+      <button (click)="loadRoles()">Retry</button>
+    </div>
+  }
+
+  <!-- List of roles -->
+  @if (!loading && !error) {
+    <div class="roles-list">
+      @if (roles.length === 0) {
+        <p class="no-data">No roles found.</p>
+      }
+      
+      @if (roles.length > 0) {
+        <ul>
+          @for (role of roles; track role.fnid + '-' + role.roleno) {
+            <li class="role-item">
+              <a [routerLink]="['/fnfnroles', role.fnid, role.roleno]" class="role-link">
+                <span class="fn-name">{{ role.fnName }}</span>
+                <span class="separator">-</span>
+                <span class="role-name">{{ role.roleName }}</span>
+              </a>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  }
+</div>

@@ -1,0 +1,73 @@
+<div class="roleskills-show-container">
+  <!-- Back link -->
+  <div class="back-link">
+    <a routerLink="/roleskills">← Back to Role Skills List</a>
+  </div>
+
+  <!-- Loading state -->
+  @if (loading) {
+    <div class="loading">
+      <p>Loading role skills...</p>
+    </div>
+  }
+
+  <!-- Error state -->
+  @if (error) {
+    <div class="error">
+      <p>{{ error }}</p>
+      <button (click)="loadRoleskillDetails()">Retry</button>
+    </div>
+  }
+
+  <!-- Role skills details -->
+  @if (!loading && !error && roleskill) {
+    <div class="role-details">
+      <header class="role-header">
+        <h1>{{ roleskill.fnName }}</h1>
+        <h2>{{ roleskill.roleName }}</h2>
+        <div class="role-meta">
+          <span class="badge">Function ID: {{ roleskill.fnid }}</span>
+          <span class="badge">Role No: {{ roleskill.roleno }}</span>
+        </div>
+      </header>
+
+      <!-- Knowledge & Skills section -->
+      <section class="skills-section">
+        <h3>Knowledge & Skills</h3>
+        
+        @if (ksdefinitions.length === 0) {
+          <p class="no-data">
+            No knowledge & skills defined for this role.
+          </p>
+        }
+
+        <!-- Grouped by category -->
+        @if (ksdefinitions.length > 0) {
+          <div class="skills-categories">
+            @for (catId of getCategoryKeys(); track catId) {
+              <div class="category-group">
+                <div class="category-header">
+                  <h4>Category {{ catId }}</h4>
+                  <span class="skills-count">{{ groupedSkills.get(catId)!.length }} 
+                    {{ groupedSkills.get(catId)!.length === 1 ? 'skill' : 'skills' }}
+                  </span>
+                </div>
+                
+                <ul class="skills-list">
+                  @for (skill of groupedSkills.get(catId); track $index) {
+                    <li class="skill-item">
+                      <div class="skill-order">{{ skill.catord }}</div>
+                      <div class="skill-content">
+                        <p>{{ skill.ksdefinition || 'No description available' }}</p>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
+          </div>
+        }
+      </section>
+    </div>
+  }
+</div>

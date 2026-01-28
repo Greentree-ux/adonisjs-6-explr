@@ -1,0 +1,41 @@
+<div class="roleskills-list-container">
+  <h1>Role Skills</h1>
+
+  <!-- Loading state -->
+  @if (loading) {
+    <div class="loading">
+      <p>Loading role skills...</p>
+    </div>
+  }
+
+  <!-- Error state -->
+  @if (error) {
+    <div class="error">
+      <p>{{ error }}</p>
+      <button (click)="loadRoleskills()">Retry</button>
+    </div>
+  }
+
+  <!-- List of role skills -->
+  @if (!loading && !error) {
+    <div class="roleskills-list">
+      @if (roleskills.length === 0) {
+        <p class="no-data">No role skills found.</p>
+      }
+      
+      @if (roleskills.length > 0) {
+        <ul>
+          @for (roleskill of roleskills; track roleskill.fnid + '-' + roleskill.roleno) {
+            <li class="roleskill-item">
+              <a [routerLink]="['/roleskills', roleskill.fnid, roleskill.roleno]" class="roleskill-link">
+                <span class="fn-name">{{ roleskill.fnName }}</span>
+                <span class="separator">-</span>
+                <span class="role-name">{{ roleskill.roleName }}</span>
+              </a>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  }
+</div>

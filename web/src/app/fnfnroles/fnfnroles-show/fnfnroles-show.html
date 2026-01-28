@@ -1,0 +1,92 @@
+<div class="fnfnroles-show-container">
+  <!-- Back link -->
+  <div class="back-link">
+    <a routerLink="/fnfnroles">← Back to Roles List</a>
+  </div>
+
+  <!-- Loading state -->
+  @if (loading) {
+    <div class="loading">
+      <p>Loading role details...</p>
+    </div>
+  }
+
+  <!-- Error state -->
+  @if (error) {
+    <div class="error">
+      <p>{{ error }}</p>
+      <button (click)="loadRoleDetails()">Retry</button>
+    </div>
+  }
+
+  <!-- Role details -->
+  @if (!loading && !error && fnfnrole) {
+    <div class="role-details">
+      <header class="role-header">
+        <h1>{{ fnfnrole.fnName }}</h1>
+        <h2>{{ fnfnrole.roleName }}</h2>
+        <div class="role-meta">
+          <span class="badge">Function ID: {{ fnfnrole.fnid }}</span>
+          <span class="badge">Role No: {{ fnfnrole.roleno }}</span>
+        </div>
+      </header>
+
+      <!-- Task sets section -->
+      <section class="tasksets-section">
+        <h3>Role Task Sets</h3>
+        
+        @if (roletasksets.length === 0) {
+          <p class="no-data">
+            No task sets found for this role.
+          </p>
+        }
+
+        @if (roletasksets.length > 0) {
+          <div class="table-container">
+            <table class="tasksets-table">
+              <thead>
+                <tr>
+                  <th>Sub Function</th>
+                  <th>Sub-Sub Function</th>
+                  <th>Order</th>
+                  <th>Task Set</th>
+                  <th>E/I</th>
+                  <th>L/M/H</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (taskset of roletasksets; track taskset.subfnid + '-' + taskset.sub2Fnord) {
+                  <tr>
+                    <td>
+                      <div class="function-info">
+                        <span class="function-id">[{{ taskset.subfnid }}]</span>
+                        <span class="function-name">{{ taskset.subfnName }}</span>
+                      </div>
+                    </td>
+                    <td>{{ taskset.subSubFnName }}</td>
+                    <td class="text-center">{{ taskset.sub2Fnord }}</td>
+                    <td class="taskset-content">{{ taskset.taskset }}</td>
+                    <td class="text-center">
+                      <span class="badge" [class.badge-external]="taskset.ei === 'E'" 
+                            [class.badge-internal]="taskset.ei === 'I'">
+                        {{ taskset.ei }}
+                      </span>
+                    </td>
+                    <td class="text-center">
+                      <span class="badge" 
+                            [class.badge-low]="taskset.lmh === 'L'"
+                            [class.badge-medium]="taskset.lmh === 'M'"
+                            [class.badge-high]="taskset.lmh === 'H'">
+                        {{ taskset.lmh }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    </div>
+  }
+</div>
