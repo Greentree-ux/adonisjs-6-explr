@@ -1,0 +1,242 @@
+.casestudy-container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #1a1a2e;
+  line-height: 1.7;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+  font-size: 0.85rem;
+  color: #555;
+  margin-bottom: 20px;
+
+  a {
+    color: #4a90d9;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .sep {
+    margin: 0 6px;
+  }
+}
+
+/* Header */
+.case-header {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+  color: #fff;
+  border-radius: 12px;
+  padding: 40px 36px;
+  margin-bottom: 36px;
+
+  .company-badge {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 10px;
+  }
+
+  .subtitle {
+    font-size: 1rem;
+    opacity: 0.82;
+    margin: 0;
+  }
+}
+
+/* Section */
+.section {
+  margin-bottom: 40px;
+
+  h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #0f3460;
+    border-left: 4px solid #e94560;
+    padding-left: 12px;
+    margin-bottom: 16px;
+  }
+
+  p {
+    margin: 0 0 14px;
+  }
+}
+
+/* Metrics grid */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.metric-card {
+  background: #f0f4ff;
+  border: 1px solid #c8d6f8;
+  border-radius: 10px;
+  padding: 18px 16px;
+  text-align: center;
+
+  .metric-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0f3460;
+  }
+
+  .metric-label {
+    font-size: 0.78rem;
+    color: #555;
+    margin-top: 6px;
+    line-height: 1.4;
+  }
+}
+
+/* Tables */
+.table-wrapper {
+  overflow-x: auto;
+  margin: 16px 0;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+
+  th {
+    background: #0f3460;
+    color: #fff;
+    text-align: left;
+    padding: 10px 14px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #e0e6f0;
+    vertical-align: top;
+  }
+
+  tr:hover td {
+    background: #f5f8ff;
+  }
+
+  .highlight td {
+    background: #fff8e1;
+  }
+
+  .milo-row td {
+    background: #e8f5e9;
+    font-weight: 600;
+  }
+}
+
+/* Challenges section */
+.challenges-section {
+  .fy-challenges {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+
+    @media (max-width: 720px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .fy-block {
+    background: #f9faff;
+    border: 1px solid #dce4f5;
+    border-radius: 10px;
+    padding: 20px;
+
+    h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f3460;
+      margin: 0 0 16px;
+    }
+  }
+
+  .challenge-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+
+    li {
+      margin-bottom: 14px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid #e8eef8;
+      font-size: 0.87rem;
+
+      &:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+      }
+    }
+  }
+}
+
+/* Challenge tags */
+.challenge-tag {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.tag-critical {
+  background: #fde0e0;
+  color: #c0392b;
+}
+
+.tag-high {
+  background: #fef3cd;
+  color: #856404;
+}
+
+.tag-medium {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+/* Strategic list */
+.strategic-list {
+  padding-left: 20px;
+  margin: 14px 0;
+
+  li {
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+  }
+}
+
+/* Footer */
+.case-footer {
+  margin-top: 48px;
+  padding-top: 16px;
+  border-top: 1px solid #ddd;
+  font-size: 0.8rem;
+  color: #888;
+}

@@ -3,6 +3,7 @@ import { FnfnrolesListComponent } from './fnfnroles/fnfnroles-list/fnfnroles-lis
 import { FnfnrolesShowComponent } from './fnfnroles/fnfnroles-show/fnfnroles-show.component'
 import { RoleskillsListComponent } from './roleskills/roleskills-list/roleskills-list.component'
 import { RoleskillsShowComponent } from './roleskills/roleskills-show/roleskills-show.component'
+import { CasestudyComponent } from './casestudy/casestudy.component'
 
 export const routes: Routes = [
   { path: '', redirectTo: '/fnfnroles', pathMatch: 'full' },
@@ -10,4 +11,5 @@ export const routes: Routes = [
   { path: 'fnfnroles/:fnid/:roleno', component: FnfnrolesShowComponent },
   { path: 'roleskills', component: RoleskillsListComponent },
   { path: 'roleskills/:fnid/:roleno', component: RoleskillsShowComponent },
+  { path: 'casestudy', component: CasestudyComponent },
 ];
