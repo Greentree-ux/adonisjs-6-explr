@@ -34,6 +34,22 @@ export default class HttpExceptionHandler extends ExceptionHandler {
    * response to the client
    */
   async handle(error: unknown, ctx: HttpContext) {
+    // For API routes, always return JSON responses instead of HTML
+    if (ctx.request.url().startsWith('/api')) {
+      const err = error as { status?: number; message?: string; messages?: unknown }
+      const status = err.status || 500
+
+      // Log the error for debugging (only visible in server terminal)
+      console.error('API Error:', err)
+
+      // Return a generic error message to the client
+      // Never expose internal error details to the frontend
+      return ctx.response.status(status).json({
+        message: status === 422 ? 'Validation failed' : 'An error occurred',
+        ...(app.inProduction ? {} : { errors: err.messages }),
+      })
+    }
+
     return super.handle(error, ctx)
   }
 
