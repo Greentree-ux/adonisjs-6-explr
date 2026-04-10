@@ -1,0 +1,148 @@
+<div class="register-container">
+  <div class="register-card">
+    <div class="register-header">
+      <h1>Create Account</h1>
+      <p>Register a new user</p>
+    </div>
+
+    <form (ngSubmit)="onSubmit()" class="register-form">
+      <div *ngIf="error" class="error-message">
+        {{ error }}
+      </div>
+
+      <div *ngIf="success" class="success-message">
+        {{ success }}
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="firstName">First Name *</label>
+          <input
+            type="text"
+            id="firstName"
+            name="firstName"
+            [(ngModel)]="firstName"
+            [disabled]="loading"
+            placeholder="John"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="lastName">Last Name</label>
+          <input
+            type="text"
+            id="lastName"
+            name="lastName"
+            [(ngModel)]="lastName"
+            [disabled]="loading"
+            placeholder="Doe"
+          />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email *</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          [(ngModel)]="email"
+          [disabled]="loading"
+          placeholder="your.email@example.com"
+          required
+        />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="password">Password *</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            [(ngModel)]="password"
+            [disabled]="loading"
+            placeholder="Min 8 characters"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="confirmPassword">Confirm Password *</label>
+          <input
+            type="password"
+            id="confirmPassword"
+            name="confirmPassword"
+            [(ngModel)]="confirmPassword"
+            [disabled]="loading"
+            placeholder="Repeat password"
+            required
+          />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="empId">Employee ID *</label>
+          <input
+            type="number"
+            id="empId"
+            name="empId"
+            [(ngModel)]="empId"
+            [disabled]="loading"
+            placeholder="12345"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="mgrId">Manager ID *</label>
+          <input
+            type="number"
+            id="mgrId"
+            name="mgrId"
+            [(ngModel)]="mgrId"
+            [disabled]="loading"
+            placeholder="1"
+            required
+          />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="approleId">App Role ID</label>
+          <input
+            type="number"
+            id="approleId"
+            name="approleId"
+            [(ngModel)]="approleId"
+            [disabled]="loading"
+            placeholder="Optional"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="fnroleId">Function Role ID</label>
+          <input
+            type="number"
+            id="fnroleId"
+            name="fnroleId"
+            [(ngModel)]="fnroleId"
+            [disabled]="loading"
+            placeholder="Optional"
+          />
+        </div>
+      </div>
+
+      <button type="submit" [disabled]="loading" class="register-button">
+        {{ loading ? 'Creating Account...' : 'Create Account' }}
+      </button>
+
+      <div class="login-link">
+        Already have an account? <a routerLink="/login">Sign in</a>
+      </div>
+    </form>
+  </div>
+</div>

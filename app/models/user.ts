@@ -3,6 +3,7 @@ import { withAuthFinder } from '@adonisjs/auth/mixins/lucid'
 import Hash from '@adonisjs/core/services/hash'
 import { BaseModel, beforeSave, belongsTo, column } from '@adonisjs/lucid/orm'
 import { compose } from '@adonisjs/core/helpers'
+import { DbRememberMeTokensProvider } from '@adonisjs/auth/session'
 import AppRole from './app_role.js'
 import FnRole from './fn_role.js'
 import type { BelongsTo } from '@adonisjs/lucid/types/relations'
@@ -28,7 +29,7 @@ export default class User extends compose(BaseModel, AuthFinder) {
   @column()
   declare email: string
 
-  @column()
+  @column({ serializeAs: null })
   declare password: string
 
   @column()
@@ -38,31 +39,10 @@ export default class User extends compose(BaseModel, AuthFinder) {
   declare lastName: string | null
 
   @column()
-  declare department: string
-
-  @column()
-  declare subDept: string | null
-
-  @column()
-  declare title: string | null
-
-  @column()
   declare mgrId: number
 
   @column()
-  declare mgrEmail: string
-
-  @column()
-  declare mgrFirstName: string
-
-  @column()
-  declare mgrLastName: string | null
-
-  @column()
-  declare mgrTitle: string | null
-
-  @column()
-  declare rememberMeToken: string | null
+  declare mustChangePassword: boolean
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -72,7 +52,9 @@ export default class User extends compose(BaseModel, AuthFinder) {
 
   @beforeSave()
   static normalizeEmail(user: User) {
-    user.email = user.email.trim().toLowerCase()
+    if (user.email) {
+      user.email = user.email.trim().toLowerCase()
+    }
   }
 
   @belongsTo(() => AppRole, {
@@ -84,4 +66,6 @@ export default class User extends compose(BaseModel, AuthFinder) {
     foreignKey: 'fnroleId',
   })
   declare fnrole: BelongsTo<typeof FnRole>
+
+  static rememberMeTokens = DbRememberMeTokensProvider.forModel(User)
 }
