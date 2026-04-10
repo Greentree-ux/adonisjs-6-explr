@@ -27,9 +27,14 @@ router
     router.get('/me', [AuthController, 'me']).as('api.auth.me')
     router.post('/forgot-password', [AuthController, 'forgotPassword']).as('api.auth.forgotPassword')
     router.post('/reset-password', [AuthController, 'resetPassword']).as('api.auth.resetPassword')
-    router.post('/change-password', [AuthController, 'changePassword']).as('api.auth.changePassword')
   })
   .prefix('/api/auth')
+
+// Change password (requires auth, exempt from forceChangePassword)
+router
+  .post('/api/auth/change-password', [AuthController, 'changePassword'])
+  .as('api.auth.changePassword')
+  .use(middleware.auth())
 
 // Sys Admin routes
 router

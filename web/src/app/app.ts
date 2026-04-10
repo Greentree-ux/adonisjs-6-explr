@@ -47,7 +47,6 @@ import { AuthService } from './auth/auth.service'
             </li>
           </ul>
           <div class="user-menu">
-            <span class="user-role" *ngIf="user.role && user.role !== 'user'">{{ user.role | uppercase }}</span>
             <span class="user-name">{{ user.firstName }} {{ user.lastName }}</span>
             <button (click)="logout()" class="logout-button">Logout</button>
           </div>
@@ -114,14 +113,6 @@ import { AuthService } from './auth/auth.service'
       display: flex;
       align-items: center;
       gap: 1rem;
-    }
-
-    .user-role {
-      font-size: 0.75rem;
-      background-color: rgba(255, 255, 255, 0.25);
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      font-weight: 600;
     }
 
     .user-name {
