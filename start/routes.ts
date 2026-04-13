@@ -22,6 +22,8 @@ const OrgAdminController = () => import('#controllers/org_admin_controller')
 router
   .group(() => {
     router.post('/register', [AuthController, 'register']).as('api.auth.register')
+    router.post('/register-invite', [AuthController, 'registerByInvite']).as('api.auth.registerByInvite')
+    router.get('/validate-invite', [AuthController, 'validateInvite']).as('api.auth.validateInvite')
     router.post('/login', [AuthController, 'login']).as('api.auth.login')
     router.post('/logout', [AuthController, 'logout']).as('api.auth.logout')
     router.get('/me', [AuthController, 'me']).as('api.auth.me')
@@ -54,6 +56,9 @@ router
     router.delete('/emp-data/:id', [OrgAdminController, 'removeEmpData']).as('api.admin.removeEmpData')
     router.get('/users', [OrgAdminController, 'listUsers']).as('api.admin.listUsers')
     router.patch('/users/:id/manager', [OrgAdminController, 'updateUserManager']).as('api.admin.updateUserManager')
+    router.get('/fn-roles', [OrgAdminController, 'listFnRoles']).as('api.admin.listFnRoles')
+    router.get('/emp-data-invite', [OrgAdminController, 'listEmpDataForInvite']).as('api.admin.listEmpDataForInvite')
+    router.post('/send-invitations', [OrgAdminController, 'sendInvitations']).as('api.admin.sendInvitations')
   })
   .prefix('/api/admin')
   .use([middleware.auth(), middleware.forceChangePassword(), middleware.role({ roles: ['org_admin'] })])

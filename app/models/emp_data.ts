@@ -19,6 +19,18 @@ export default class EmpData extends BaseModel {
   @column()
   declare empId: number | null
 
+  @column()
+  declare invitationToken: string | null
+
+  @column.dateTime()
+  declare invitationSentAt: DateTime | null
+
+  @column()
+  declare fnroleId: number | null
+
+  @column()
+  declare mgrId: number | null
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 

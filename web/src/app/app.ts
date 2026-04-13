@@ -29,6 +29,11 @@ import { AuthService } from './auth/auth.service'
               </a>
             </li>
             <li *ngIf="user.role === 'org_admin'">
+              <a routerLink="/orgadmin/invite-employees" routerLinkActive="active">
+                Invite Employees
+              </a>
+            </li>
+            <li *ngIf="user.role === 'org_admin'">
               <a routerLink="/orgadmin/employee-manager" routerLinkActive="active">
                 Employee-Manager
               </a>

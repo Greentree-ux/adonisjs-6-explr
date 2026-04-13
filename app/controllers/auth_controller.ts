@@ -8,7 +8,7 @@ import {
   requestPasswordResetValidator,
   resetPasswordValidator,
 } from '#validators/auth'
-import { changePasswordValidator } from '#validators/admin'
+import { changePasswordValidator, registerByInviteValidator } from '#validators/admin'
 import type { HttpContext } from '@adonisjs/core/http'
 import mail from '@adonisjs/mail/services/main'
 import env from '#start/env'
@@ -148,6 +148,98 @@ export default class AuthController {
     await user.save()
 
     return response.ok({ message: 'Password changed successfully' })
+  }
+
+  async validateInvite({ request, response }: HttpContext) {
+    const token = request.input('token')
+    if (!token) {
+      return response.badRequest({ message: 'Invitation token is required' })
+    }
+
+    const empData = await EmpData.findBy('invitationToken', token)
+    if (!empData) {
+      return response.notFound({ message: 'Invalid or expired invitation token' })
+    }
+
+    // Check if already registered
+    const existingUser = await User.findBy('email', empData.email)
+    if (existingUser) {
+      return response.conflict({ message: 'This email has already been registered' })
+    }
+
+    return response.ok({
+      data: {
+        email: empData.email,
+        firstName: empData.firstName,
+        lastName: empData.lastName,
+        empId: empData.empId,
+      },
+    })
+  }
+
+  async registerByInvite({ request, response }: HttpContext) {
+    const { token, password } = await request.validateUsing(registerByInviteValidator)
+
+    const empData = await EmpData.findBy('invitationToken', token)
+    if (!empData) {
+      return response.notFound({ message: 'Invalid or expired invitation token' })
+    }
+
+    // Check if already registered
+    const existingUser = await User.findBy('email', empData.email)
+    if (existingUser) {
+      return response.conflict({ message: 'This email has already been registered' })
+    }
+
+    // Default role = 'user'
+    const userRole = await AppRole.findBy('rName', 'user')
+
+    const user = await User.create({
+      email: empData.email,
+      password,
+      firstName: empData.firstName ?? '',
+      lastName: empData.lastName ?? null,
+      empId: empData.empId ?? 0,
+      mgrId: empData.mgrId ?? 0,
+      approleId: userRole?.id ?? null,
+      fnroleId: empData.fnroleId ?? null,
+      mustChangePassword: false,
+    })
+
+    // Clear invitation token (it's been used)
+    empData.invitationToken = null
+    await empData.save()
+
+    // Send confirmation email
+    try {
+      await mail.send((message) => {
+        message
+          .to(user.email)
+          .subject('Registration Confirmed')
+          .html(
+            `
+            <h1>Welcome!</h1>
+            <p>Hello ${user.firstName},</p>
+            <p>Your registration at the Function &amp; Role Management application is confirmed.</p>
+            <p>You can now log in using your email and the password you set during registration.</p>
+          `.trim()
+          )
+      })
+    } catch {
+      // Don't fail registration if confirmation email fails
+    }
+
+    return response.created({
+      message: 'Registration successful. You can now log in.',
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
+      },
+    })
   }
 
   async forgotPassword({ request, response }: HttpContext) {
