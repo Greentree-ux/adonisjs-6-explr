@@ -48,9 +48,10 @@ router
 // Org Admin routes
 router
   .group(() => {
-    router.get('/allowed-emails', [OrgAdminController, 'listAllowedEmails']).as('api.admin.listAllowedEmails')
-    router.post('/allowed-emails', [OrgAdminController, 'addAllowedEmail']).as('api.admin.addAllowedEmail')
-    router.delete('/allowed-emails/:id', [OrgAdminController, 'removeAllowedEmail']).as('api.admin.removeAllowedEmail')
+    router.get('/emp-data', [OrgAdminController, 'listEmpData']).as('api.admin.listEmpData')
+    router.post('/emp-data', [OrgAdminController, 'addEmpData']).as('api.admin.addEmpData')
+    router.put('/emp-data/:id', [OrgAdminController, 'updateEmpData']).as('api.admin.updateEmpData')
+    router.delete('/emp-data/:id', [OrgAdminController, 'removeEmpData']).as('api.admin.removeEmpData')
     router.get('/users', [OrgAdminController, 'listUsers']).as('api.admin.listUsers')
     router.patch('/users/:id/manager', [OrgAdminController, 'updateUserManager']).as('api.admin.updateUserManager')
   })

@@ -9,7 +9,7 @@ import { FnfnrolesShowComponent } from './fnfnroles/fnfnroles-show/fnfnroles-sho
 import { RoleskillsListComponent } from './roleskills/roleskills-list/roleskills-list.component'
 import { RoleskillsShowComponent } from './roleskills/roleskills-show/roleskills-show.component'
 import { CreateOrgAdminComponent } from './sysadmin/create-org-admin/create-org-admin.component'
-import { AllowedEmailsComponent } from './orgadmin/allowed-emails/allowed-emails.component'
+import { EmpDataComponent } from './orgadmin/emp-data/emp-data.component'
 import { EmployeeManagerComponent } from './orgadmin/employee-manager/employee-manager.component'
 import { authGuard } from './auth/auth.guard'
 import { sysAdminGuard } from './auth/sys-admin.guard'
@@ -28,7 +28,7 @@ export const routes: Routes = [
   { path: 'sysadmin', component: CreateOrgAdminComponent, canActivate: [sysAdminGuard, changePasswordGuard] },
 
   // Org Admin routes
-  { path: 'orgadmin/allowed-emails', component: AllowedEmailsComponent, canActivate: [orgAdminGuard, changePasswordGuard] },
+  { path: 'orgadmin/emp-data', component: EmpDataComponent, canActivate: [orgAdminGuard, changePasswordGuard] },
   { path: 'orgadmin/employee-manager', component: EmployeeManagerComponent, canActivate: [orgAdminGuard, changePasswordGuard] },
 
   // Regular user routes

@@ -24,8 +24,8 @@ import { AuthService } from './auth/auth.service'
 
             <!-- Org Admin nav -->
             <li *ngIf="user.role === 'org_admin'">
-              <a routerLink="/orgadmin/allowed-emails" routerLinkActive="active">
-                Allowed Emails
+              <a routerLink="/orgadmin/emp-data" routerLinkActive="active">
+                Employee Data
               </a>
             </li>
             <li *ngIf="user.role === 'org_admin'">

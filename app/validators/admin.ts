@@ -16,9 +16,12 @@ export const createOrgAdminValidator = vine.compile(
   })
 )
 
-export const allowedEmailValidator = vine.compile(
+export const empDataValidator = vine.compile(
   vine.object({
     email: vine.string().trim().email(),
+    firstName: vine.string().trim().optional(),
+    lastName: vine.string().trim().optional(),
+    empId: vine.number().optional(),
   })
 )
 

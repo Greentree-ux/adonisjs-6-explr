@@ -1,6 +1,6 @@
 import User from '#models/user'
 import AppRole from '#models/app_role'
-import AllowedEmail from '#models/allowed_email'
+import EmpData from '#models/emp_data'
 import PasswordReset from '#models/password_reset'
 import {
   loginValidator,
@@ -17,8 +17,8 @@ export default class AuthController {
   async register({ request, response }: HttpContext) {
     const data = await request.validateUsing(registerValidator)
 
-    // Check email is in the allowed list
-    const allowed = await AllowedEmail.findBy('email', data.email.trim().toLowerCase())
+    // Check email is in the employee data
+    const allowed = await EmpData.findBy('email', data.email.trim().toLowerCase())
     if (!allowed) {
       return response.forbidden({
         message: 'This email is not authorized to register. Contact your Org Admin.',
@@ -58,8 +58,8 @@ export default class AuthController {
   async login({ request, response, auth }: HttpContext) {
     const { email, password, rememberMe } = await request.validateUsing(loginValidator)
 
-    // Check email is in the allowed list
-    const allowed = await AllowedEmail.findBy('email', email.trim().toLowerCase())
+    // Check email is in the employee data
+    const allowed = await EmpData.findBy('email', email.trim().toLowerCase())
     if (!allowed) {
       return response.forbidden({
         message: 'This email is not authorized to log in. Contact your Org Admin.',

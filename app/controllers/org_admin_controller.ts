@@ -1,39 +1,65 @@
-import AllowedEmail from '#models/allowed_email'
+import EmpData from '#models/emp_data'
 import User from '#models/user'
-import { allowedEmailValidator, updateManagerValidator } from '#validators/admin'
+import { empDataValidator, updateManagerValidator } from '#validators/admin'
 import type { HttpContext } from '@adonisjs/core/http'
 
 export default class OrgAdminController {
-  // --- Allowed Emails ---
+  // --- Employee Data ---
 
-  async listAllowedEmails({ response }: HttpContext) {
-    const emails = await AllowedEmail.query().orderBy('email', 'asc')
-    return response.ok({ data: { allowedEmails: emails } })
+  async listEmpData({ response }: HttpContext) {
+    const employees = await EmpData.query().orderBy('email', 'asc')
+    return response.ok({ data: { empData: employees } })
   }
 
-  async addAllowedEmail({ request, response }: HttpContext) {
-    const { email } = await request.validateUsing(allowedEmailValidator)
+  async addEmpData({ request, response }: HttpContext) {
+    const data = await request.validateUsing(empDataValidator)
 
-    const existing = await AllowedEmail.findBy('email', email.trim().toLowerCase())
+    const existing = await EmpData.findBy('email', data.email.trim().toLowerCase())
     if (existing) {
-      return response.conflict({ message: 'This email is already in the allowed list' })
+      return response.conflict({ message: 'This email already exists in employee data' })
     }
 
-    const allowedEmail = await AllowedEmail.create({ email })
+    const empData = await EmpData.create({
+      email: data.email,
+      firstName: data.firstName ?? null,
+      lastName: data.lastName ?? null,
+      empId: data.empId ?? null,
+    })
     return response.created({
-      message: 'Email added to allowed list',
-      data: { allowedEmail },
+      message: 'Employee added successfully',
+      data: { empData },
     })
   }
 
-  async removeAllowedEmail({ params, response }: HttpContext) {
-    const allowedEmail = await AllowedEmail.find(params.id)
-    if (!allowedEmail) {
-      return response.notFound({ message: 'Allowed email not found' })
+  async updateEmpData({ params, request, response }: HttpContext) {
+    const empData = await EmpData.find(params.id)
+    if (!empData) {
+      return response.notFound({ message: 'Employee record not found' })
     }
 
-    await allowedEmail.delete()
-    return response.ok({ message: 'Email removed from allowed list' })
+    const data = await request.validateUsing(empDataValidator)
+    empData.merge({
+      email: data.email,
+      firstName: data.firstName ?? null,
+      lastName: data.lastName ?? null,
+      empId: data.empId ?? null,
+    })
+    await empData.save()
+
+    return response.ok({
+      message: 'Employee record updated',
+      data: { empData },
+    })
+  }
+
+  async removeEmpData({ params, response }: HttpContext) {
+    const empData = await EmpData.find(params.id)
+    if (!empData) {
+      return response.notFound({ message: 'Employee record not found' })
+    }
+
+    await empData.delete()
+    return response.ok({ message: 'Employee record removed' })
   }
 
   // --- Employee-Manager Mapping ---

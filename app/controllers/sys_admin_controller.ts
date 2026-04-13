@@ -1,6 +1,6 @@
 import User from '#models/user'
 import AppRole from '#models/app_role'
-import AllowedEmail from '#models/allowed_email'
+import EmpData from '#models/emp_data'
 import { createOrgAdminValidator } from '#validators/admin'
 import type { HttpContext } from '@adonisjs/core/http'
 
@@ -19,10 +19,14 @@ export default class SysAdminController {
       return response.conflict({ message: 'A user with this email already exists' })
     }
 
-    // Add to allowed_emails if not already there
-    const existingAllowed = await AllowedEmail.findBy('email', data.email.trim().toLowerCase())
-    if (!existingAllowed) {
-      await AllowedEmail.create({ email: data.email })
+    // Add to emp_data if not already there
+    const existingEmpData = await EmpData.findBy('email', data.email.trim().toLowerCase())
+    if (!existingEmpData) {
+      await EmpData.create({
+        email: data.email,
+        firstName: data.firstName,
+        lastName: data.lastName ?? null,
+      })
     }
 
     // Create the Org Admin user with mustChangePassword = true

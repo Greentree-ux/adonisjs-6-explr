@@ -1,7 +1,7 @@
 import { BaseSeeder } from '@adonisjs/lucid/seeders'
 import AppRole from '#models/app_role'
 import User from '#models/user'
-import AllowedEmail from '#models/allowed_email'
+import EmpData from '#models/emp_data'
 
 export default class extends BaseSeeder {
   async run() {
@@ -17,9 +17,9 @@ export default class extends BaseSeeder {
     // Seed the first Sys Admin account
     const sysAdminEmail = 'sysadmin@example.com'
 
-    await AllowedEmail.updateOrCreate(
+    await EmpData.updateOrCreate(
       { email: sysAdminEmail },
-      { email: sysAdminEmail }
+      { email: sysAdminEmail, firstName: 'System', lastName: 'Admin' }
     )
 
     await User.updateOrCreate(

@@ -116,7 +116,7 @@ export class ChangePasswordComponent {
           if (user?.role === 'sys_admin') {
             this.router.navigate(['/sysadmin'])
           } else if (user?.role === 'org_admin') {
-            this.router.navigate(['/orgadmin/allowed-emails'])
+            this.router.navigate(['/orgadmin/emp-data'])
           } else {
             this.router.navigate(['/fnfnroles'])
           }
