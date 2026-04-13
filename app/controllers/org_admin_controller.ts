@@ -115,7 +115,7 @@ export default class OrgAdminController {
     const result = fnRoles.map((r) => ({
       id: r.id,
       fnid: r.fnid,
-      fnName: r.fn?.fn_name ?? '',
+      fnName: r.fn?.fnName ?? '',
       roleno: r.roleno,
       roleName: r.role_name,
     }))
