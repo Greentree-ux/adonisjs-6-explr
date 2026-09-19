@@ -107,90 +107,52 @@
         font-size: 1rem;
       }
 
-      .skills-categories {
-        display: flex;
-        flex-direction: column;
-        gap: 2rem;
+      .table-scroll {
+        overflow-x: auto;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
 
-        .category-group {
-          background-color: white;
-          border-radius: 8px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-          overflow: hidden;
+      .skills-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
 
-          .category-header {
-            background-color: #f8f9fa;
-            padding: 1rem 1.5rem;
-            border-left: 4px solid #6c757d;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        th,
+        td {
+          border: 1px solid #d9e2ec;
+          padding: 0.75rem 0.85rem;
+          vertical-align: top;
+          text-align: left;
+        }
 
-            h4 {
-              margin: 0;
-              font-size: 1.25rem;
-              color: #333;
-              font-weight: 600;
-            }
+        th {
+          background: #ebf2fb;
+          color: #1f3355;
+          font-weight: 700;
+          white-space: nowrap;
+        }
 
-            .skills-count {
-              font-size: 0.875rem;
-              color: #6c757d;
-              font-weight: 500;
-              background-color: #e9ecef;
-              padding: 0.25rem 0.75rem;
-              border-radius: 12px;
-            }
-          }
+        tbody tr:nth-child(even) {
+          background-color: #f8fbff;
+        }
 
-          .skills-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
+        td:last-child {
+          width: 120px;
+        }
 
-            .skill-item {
-              display: flex;
-              padding: 1rem 1.5rem;
-              border-bottom: 1px solid #e9ecef;
-              transition: background-color 0.2s;
-
-              &:hover {
-                background-color: #f8f9fa;
-              }
-
-              &:last-child {
-                border-bottom: none;
-              }
-
-              .skill-order {
-                flex-shrink: 0;
-                width: 40px;
-                height: 40px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: 700;
-                font-size: 0.95rem;
-                margin-right: 1rem;
-              }
-
-              .skill-content {
-                flex: 1;
-                display: flex;
-                align-items: center;
-
-                p {
-                  margin: 0;
-                  color: #495057;
-                  font-size: 1rem;
-                  line-height: 1.6;
-                }
-              }
-            }
-          }
+        .mapping-count {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 1.9rem;
+          padding: 0.18rem 0.5rem;
+          border-radius: 999px;
+          background: #edf2fa;
+          color: #2f4a73;
+          font-weight: 700;
+          cursor: help;
         }
       }
     }
@@ -216,37 +178,12 @@
       }
 
       .skills-section {
-        .skills-categories {
-          gap: 1.5rem;
+        .skills-table {
+          min-width: 760px;
 
-          .category-group {
-            .category-header {
-              padding: 0.75rem 1rem;
-              flex-direction: column;
-              align-items: flex-start;
-              gap: 0.5rem;
-
-              h4 {
-                font-size: 1.1rem;
-              }
-            }
-
-            .skills-list {
-              .skill-item {
-                padding: 0.75rem 1rem;
-                flex-direction: column;
-                align-items: flex-start;
-
-                .skill-order {
-                  margin-bottom: 0.5rem;
-                  margin-right: 0;
-                }
-
-                .skill-content p {
-                  font-size: 0.95rem;
-                }
-              }
-            }
+          th,
+          td {
+            padding: 0.65rem 0.75rem;
           }
         }
       }

@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "build:web": "cd web && npm run build && cp -r dist/web/browser/* ../public/"
+    "build:web": "cd web && npm run build"
   },
   "imports": {
     "#controllers/*": "./app/controllers/*.js",
@@ -69,9 +69,11 @@
     "@angular/platform-browser-dynamic": "^21.0.6",
     "@dimerapp/markdown": "^8.0.1",
     "@vinejs/vine": "^3.0.0",
+    "csv-parse": "^6.2.1",
     "luxon": "^3.5.0",
     "mysql2": "^3.12.0",
     "pg": "^8.13.3",
+    "pg-boss": "^12.18.2",
     "reflect-metadata": "^0.2.2",
     "ts-node": "^10.9.2"
   },

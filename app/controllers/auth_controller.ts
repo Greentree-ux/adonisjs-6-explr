@@ -1,6 +1,7 @@
 import User from '#models/user'
 import AppRole from '#models/app_role'
 import EmpData from '#models/emp_data'
+import FnRole from '#models/fn_role'
 import PasswordReset from '#models/password_reset'
 import {
   loginValidator,
@@ -33,6 +34,7 @@ export default class AuthController {
     }
 
     const user = await User.create({
+      coId: allowed.coId,
       email: data.email,
       password: data.password,
       firstName: data.firstName,
@@ -41,6 +43,8 @@ export default class AuthController {
       mgrId: data.mgrId,
       approleId,
       fnroleId: data.fnroleId,
+      dateOfJoining: allowed.dateOfJoining,
+      lastRoleChange: allowed.lastRoleChange,
     })
     return response.created({
       message: 'User registered successfully',
@@ -173,6 +177,8 @@ export default class AuthController {
         firstName: empData.firstName,
         lastName: empData.lastName,
         empId: empData.empId,
+        dateOfJoining: empData.dateOfJoining?.toISODate() ?? null,
+        lastRoleChange: empData.lastRoleChange?.toISODate() ?? null,
       },
     })
   }
@@ -195,6 +201,7 @@ export default class AuthController {
     const userRole = await AppRole.findBy('rName', 'user')
 
     const user = await User.create({
+      coId: empData.coId,
       email: empData.email,
       password,
       firstName: empData.firstName ?? '',
@@ -203,6 +210,8 @@ export default class AuthController {
       mgrId: empData.mgrId ?? 0,
       approleId: userRole?.id ?? null,
       fnroleId: empData.fnroleId ?? null,
+      dateOfJoining: empData.dateOfJoining,
+      lastRoleChange: empData.lastRoleChange,
       mustChangePassword: false,
     })
 
@@ -210,8 +219,29 @@ export default class AuthController {
     empData.invitationToken = null
     await empData.save()
 
-    // Send confirmation email
+    // Send confirmation email with role and manager info
     try {
+      let fnRoleLabel = 'Not assigned'
+      if (user.fnroleId) {
+        const fnRole = await FnRole.query().where('id', user.fnroleId).preload('fn').first()
+        if (fnRole) {
+          fnRoleLabel = `${fnRole.fn?.fnName ?? ''} — ${fnRole.role_name}`
+        }
+      }
+
+      let mgrLabel = 'Not assigned'
+      if (user.mgrId) {
+        const mgr = await User.query().where('empId', user.mgrId).first()
+        if (mgr) {
+          mgrLabel = `${mgr.firstName} ${mgr.lastName ?? ''}`.trim()
+        } else {
+          const empMgr = await EmpData.query().where('empId', user.mgrId).first()
+          if (empMgr) {
+            mgrLabel = `${empMgr.firstName ?? ''} ${empMgr.lastName ?? ''}`.trim()
+          }
+        }
+      }
+
       await mail.send((message) => {
         message
           .to(user.email)
@@ -221,6 +251,11 @@ export default class AuthController {
             <h1>Welcome!</h1>
             <p>Hello ${user.firstName},</p>
             <p>Your registration at the Function &amp; Role Management application is confirmed.</p>
+            <p><strong>Your assignment details:</strong></p>
+            <ul>
+              <li><strong>Function Role:</strong> ${fnRoleLabel}</li>
+              <li><strong>Manager:</strong> ${mgrLabel}</li>
+            </ul>
             <p>You can now log in using your email and the password you set during registration.</p>
           `.trim()
           )

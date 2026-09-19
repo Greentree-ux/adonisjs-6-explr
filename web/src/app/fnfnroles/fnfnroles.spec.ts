@@ -1,16 +1,19 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing'
+import { HttpClientTestingModule } from '@angular/common/http/testing'
 
-import { Fnfnroles } from './fnfnroles';
+import { FnfnrolesService } from './fnfnroles.service'
 
-describe('Fnfnroles', () => {
-  let service: Fnfnroles;
+describe('FnfnrolesService', () => {
+  let service: FnfnrolesService
 
   beforeEach(() => {
-    TestBed.configureTestingModule({});
-    service = TestBed.inject(Fnfnroles);
-  });
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+    })
+    service = TestBed.inject(FnfnrolesService)
+  })
 
   it('should be created', () => {
-    expect(service).toBeTruthy();
-  });
-});
+    expect(service).toBeTruthy()
+  })
+})

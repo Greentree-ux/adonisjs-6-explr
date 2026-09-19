@@ -15,7 +15,7 @@ export default class Taskset extends BaseModel {
   @column()
   declare subfnid: number
 
-  @column()
+  @column({ columnName: 'sub2fnord' })
   declare sub2fnord: number
 
   @column()

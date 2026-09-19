@@ -16,9 +16,12 @@ interface KsDefinition {
   catid: number
   catord: number
   roleno: number
+  knowledgeSkillType: string | null
+  ksCategory: string | null
+  ksName: string | null
   ksdefinition: string | null
-  catName?: string | null
-  ksColor?: string | null
+  tasksetMappingCount: number
+  mappedSubSubFnNames: string[]
 }
 
 interface ApiResponse<T> {

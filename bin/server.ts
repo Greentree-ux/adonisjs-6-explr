@@ -34,6 +34,28 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
     app.booting(async () => {
       await import('#start/env')
     })
+    app.booted(async () => {
+      const { default: env } = await import('#start/env')
+      const reminderWorkerEnabled = (env.get('REMINDER_WORKER_ENABLED') ?? 'true') !== 'false'
+
+      if (!reminderWorkerEnabled) {
+        return
+      }
+
+      const { default: ReminderService } = await import('#services/reminder_service')
+      await ReminderService.start()
+    })
+    app.terminating(async () => {
+      const { default: env } = await import('#start/env')
+      const reminderWorkerEnabled = (env.get('REMINDER_WORKER_ENABLED') ?? 'true') !== 'false'
+
+      if (!reminderWorkerEnabled) {
+        return
+      }
+
+      const { default: ReminderService } = await import('#services/reminder_service')
+      await ReminderService.stop()
+    })
     app.listen('SIGTERM', () => app.terminate())
     app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
   })

@@ -48,6 +48,13 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   /*
   |----------------------------------------------------------
+  | Variables for background reminder worker startup
+  |----------------------------------------------------------
+  */
+  REMINDER_WORKER_ENABLED: Env.schema.string.optional(),
+
+  /*
+  |----------------------------------------------------------
   | Application URL for password reset links
   |----------------------------------------------------------
   */

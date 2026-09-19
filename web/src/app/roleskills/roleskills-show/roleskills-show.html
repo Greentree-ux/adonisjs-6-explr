@@ -34,37 +34,41 @@
       <!-- Knowledge & Skills section -->
       <section class="skills-section">
         <h3>Knowledge & Skills</h3>
-        
+
         @if (ksdefinitions.length === 0) {
           <p class="no-data">
             No knowledge & skills defined for this role.
           </p>
         }
 
-        <!-- Grouped by category -->
         @if (ksdefinitions.length > 0) {
-          <div class="skills-categories">
-            @for (catId of getCategoryKeys(); track catId) {
-              <div class="category-group">
-                <div class="category-header">
-                  <h4>Category {{ catId }}</h4>
-                  <span class="skills-count">{{ groupedSkills.get(catId)!.length }} 
-                    {{ groupedSkills.get(catId)!.length === 1 ? 'skill' : 'skills' }}
-                  </span>
-                </div>
-                
-                <ul class="skills-list">
-                  @for (skill of groupedSkills.get(catId); track $index) {
-                    <li class="skill-item">
-                      <div class="skill-order">{{ skill.catord }}</div>
-                      <div class="skill-content">
-                        <p>{{ skill.ksdefinition || 'No description available' }}</p>
-                      </div>
-                    </li>
-                  }
-                </ul>
-              </div>
-            }
+          <div class="table-scroll">
+            <table class="skills-table">
+              <thead>
+                <tr>
+                  <th>Knowledge / Skill (K/S)</th>
+                  <th>K/S Category</th>
+                  <th>K/S Name</th>
+                  <th>K/S Definition</th>
+                  <th>Taskset Mappings</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (skill of ksdefinitions; track skill.id) {
+                  <tr>
+                    <td>{{ skill.knowledgeSkillType || '—' }}</td>
+                    <td>{{ skill.ksCategory || '—' }}</td>
+                    <td>{{ skill.ksName || '—' }}</td>
+                    <td>{{ skill.ksdefinition || 'No description available' }}</td>
+                    <td>
+                      <span class="mapping-count" [attr.title]="getTasksetMappingTooltip(skill)">
+                        {{ skill.tasksetMappingCount }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
           </div>
         }
       </section>

@@ -4,6 +4,8 @@ import FnRole from './fn_role.js'
 import type { HasMany } from '@adonisjs/lucid/types/relations'
 
 export default class WLevel extends BaseModel {
+  static table = 'wlevels'
+
   @column({ isPrimary: true })
   declare id: number
 

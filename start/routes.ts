@@ -17,17 +17,23 @@ const FnFnrolesController = () => import('#controllers/fn_fnroles_controller')
 const RoleskillsController = () => import('#controllers/roleskills_controller')
 const SysAdminController = () => import('#controllers/sys_admin_controller')
 const OrgAdminController = () => import('#controllers/org_admin_controller')
+const AssessmentController = () => import('#controllers/assessment_controller')
+const DevelopmentPlannerController = () => import('#controllers/development_planner_controller')
 
 // Auth routes (public)
 router
   .group(() => {
     router.post('/register', [AuthController, 'register']).as('api.auth.register')
-    router.post('/register-invite', [AuthController, 'registerByInvite']).as('api.auth.registerByInvite')
+    router
+      .post('/register-invite', [AuthController, 'registerByInvite'])
+      .as('api.auth.registerByInvite')
     router.get('/validate-invite', [AuthController, 'validateInvite']).as('api.auth.validateInvite')
     router.post('/login', [AuthController, 'login']).as('api.auth.login')
     router.post('/logout', [AuthController, 'logout']).as('api.auth.logout')
     router.get('/me', [AuthController, 'me']).as('api.auth.me')
-    router.post('/forgot-password', [AuthController, 'forgotPassword']).as('api.auth.forgotPassword')
+    router
+      .post('/forgot-password', [AuthController, 'forgotPassword'])
+      .as('api.auth.forgotPassword')
     router.post('/reset-password', [AuthController, 'resetPassword']).as('api.auth.resetPassword')
   })
   .prefix('/api/auth')
@@ -41,27 +47,66 @@ router
 // Sys Admin routes
 router
   .group(() => {
-    router.post('/org-admins', [SysAdminController, 'createOrgAdmin']).as('api.sysadmin.createOrgAdmin')
-    router.get('/org-admins', [SysAdminController, 'listOrgAdmins']).as('api.sysadmin.listOrgAdmins')
+    router
+      .post('/org-admins', [SysAdminController, 'createOrgAdmin'])
+      .as('api.sysadmin.createOrgAdmin')
+    router
+      .get('/org-admins', [SysAdminController, 'listOrgAdmins'])
+      .as('api.sysadmin.listOrgAdmins')
+    router
+      .delete('/org-admins', [SysAdminController, 'deleteOrgAdmins'])
+      .as('api.sysadmin.deleteOrgAdmins')
   })
   .prefix('/api/sysadmin')
-  .use([middleware.auth(), middleware.forceChangePassword(), middleware.role({ roles: ['sys_admin'] })])
+  .use([
+    middleware.auth(),
+    middleware.forceChangePassword(),
+    middleware.role({ roles: ['sys_admin'] }),
+  ])
 
 // Org Admin routes
 router
   .group(() => {
     router.get('/emp-data', [OrgAdminController, 'listEmpData']).as('api.admin.listEmpData')
     router.post('/emp-data', [OrgAdminController, 'addEmpData']).as('api.admin.addEmpData')
+    router.post('/emp-data/import', [OrgAdminController, 'importEmpData']).as('api.admin.importEmpData')
     router.put('/emp-data/:id', [OrgAdminController, 'updateEmpData']).as('api.admin.updateEmpData')
-    router.delete('/emp-data/:id', [OrgAdminController, 'removeEmpData']).as('api.admin.removeEmpData')
+    router
+      .delete('/emp-data/:id', [OrgAdminController, 'removeEmpData'])
+      .as('api.admin.removeEmpData')
     router.get('/users', [OrgAdminController, 'listUsers']).as('api.admin.listUsers')
-    router.patch('/users/:id/manager', [OrgAdminController, 'updateUserManager']).as('api.admin.updateUserManager')
+    router
+      .patch('/users/:id/manager', [OrgAdminController, 'updateUserManager'])
+      .as('api.admin.updateUserManager')
     router.get('/fn-roles', [OrgAdminController, 'listFnRoles']).as('api.admin.listFnRoles')
-    router.get('/emp-data-invite', [OrgAdminController, 'listEmpDataForInvite']).as('api.admin.listEmpDataForInvite')
-    router.post('/send-invitations', [OrgAdminController, 'sendInvitations']).as('api.admin.sendInvitations')
+    router
+      .get('/emp-data-invite', [OrgAdminController, 'listEmpDataForInvite'])
+      .as('api.admin.listEmpDataForInvite')
+    router
+      .get('/registered-employees', [OrgAdminController, 'listRegisteredEmployees'])
+      .as('api.admin.listRegisteredEmployees')
+    router
+      .patch('/users/:id/role-manager', [OrgAdminController, 'updateUserRoleManager'])
+      .as('api.admin.updateUserRoleManager')
+    router
+      .post('/send-invitations', [OrgAdminController, 'sendInvitations'])
+      .as('api.admin.sendInvitations')
+    router
+      .get('/access-policy', [OrgAdminController, 'getAccessPolicy'])
+      .as('api.admin.getAccessPolicy')
+    router
+      .post('/performance-period-reset', [OrgAdminController, 'startFreshAssessmentDevelopment'])
+      .as('api.admin.startFreshAssessmentDevelopment')
+    router
+      .put('/access-policy', [OrgAdminController, 'updateAccessPolicy'])
+      .as('api.admin.updateAccessPolicy')
   })
   .prefix('/api/admin')
-  .use([middleware.auth(), middleware.forceChangePassword(), middleware.role({ roles: ['org_admin'] })])
+  .use([
+    middleware.auth(),
+    middleware.forceChangePassword(),
+    middleware.role({ roles: ['org_admin'] }),
+  ])
 
 // Protected API routes
 router
@@ -77,6 +122,32 @@ router
     router.get('/api/roleskills/:fnid/:roleno', [RoleskillsController, 'show']).as('api.roleskills.show')
       .where('fnid', router.matchers.number())
       .where('roleno', router.matchers.number())
+
+    router
+      .get('/api/assessment', [AssessmentController, 'getFormData'])
+      .as('api.assessment.getFormData')
+    router
+      .get('/api/assessment/team', [AssessmentController, 'getTeamMembers'])
+      .as('api.assessment.getTeamMembers')
+    router.post('/api/assessment/submit', [AssessmentController, 'submit']).as('api.assessment.submit')
+
+      router
+        .get('/api/development-plan/team-members', [DevelopmentPlannerController, 'getTeamMembers'])
+        .as('api.devplan.getTeamMembers')
+      router
+        .get('/api/development-plan/stage/:stage', [DevelopmentPlannerController, 'getStage'])
+        .as('api.devplan.getStage')
+        .where('stage', router.matchers.number())
+      router
+        .post('/api/development-plan/stage/:stage', [DevelopmentPlannerController, 'saveStage'])
+        .as('api.devplan.saveStage')
+        .where('stage', router.matchers.number())
+      router
+        .post('/api/development-plan/finalize', [DevelopmentPlannerController, 'finalize'])
+        .as('api.devplan.finalize')
+      router
+        .get('/api/development-plan/export', [DevelopmentPlannerController, 'exportCsv'])
+        .as('api.devplan.exportCsv')
   })
   .use([middleware.auth(), middleware.forceChangePassword()])
 

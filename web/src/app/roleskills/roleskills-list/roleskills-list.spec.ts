@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing'
 import { HttpClientTestingModule } from '@angular/common/http/testing'
 import { RouterTestingModule } from '@angular/router/testing'
 import { of, throwError } from 'rxjs'
+import { vi } from 'vitest'
 
 import { RoleskillsListComponent } from './roleskills-list.component'
 import { RoleskillsService } from '../roleskills.service'
@@ -13,8 +14,8 @@ describe('RoleskillsListComponent', () => {
 
   const mockRoleskills = {
     data: [
-      { fnid: 1, roleno: 1, fn_name: 'Marketing', role_name: 'Manager' },
-      { fnid: 2, roleno: 2, fn_name: 'Sales', role_name: 'Executive' }
+      { fnid: 1, roleno: 1, fnName: 'Marketing', roleName: 'Manager' },
+      { fnid: 2, roleno: 2, fnName: 'Sales', roleName: 'Executive' }
     ]
   }
 
@@ -37,7 +38,7 @@ describe('RoleskillsListComponent', () => {
   })
 
   it('should load roleskills on init', () => {
-    spyOn(service, 'list').and.returnValue(of(mockRoleskills))
+    vi.spyOn(service, 'list').mockReturnValue(of(mockRoleskills))
     
     fixture.detectChanges() // triggers ngOnInit
     
@@ -47,9 +48,7 @@ describe('RoleskillsListComponent', () => {
   })
 
   it('should handle errors', () => {
-    spyOn(service, 'list').and.returnValue(
-      throwError(() => new Error('Network error'))
-    )
+    vi.spyOn(service, 'list').mockReturnValue(throwError(() => new Error('Network error')))
     
     fixture.detectChanges()
     

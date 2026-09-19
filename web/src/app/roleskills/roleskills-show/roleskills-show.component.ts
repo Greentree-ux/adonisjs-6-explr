@@ -16,7 +16,12 @@ interface KsDefinition {
   catid: number
   catord: number
   roleno: number
+  knowledgeSkillType: string | null
+  ksCategory: string | null
+  ksName: string | null
   ksdefinition: string | null
+  tasksetMappingCount: number
+  mappedSubSubFnNames: string[]
 }
 
 @Component({
@@ -29,7 +34,6 @@ interface KsDefinition {
 export class RoleskillsShowComponent implements OnInit {
   roleskill: Roleskill | null = null
   ksdefinitions: KsDefinition[] = []
-  groupedSkills: Map<number, KsDefinition[]> = new Map()
   loading = true
   error: string | null = null
   fnid: number = 0
@@ -62,7 +66,6 @@ export class RoleskillsShowComponent implements OnInit {
       next: (response) => {
         this.roleskill = response.data.roleskill
         this.ksdefinitions = response.data.ksdefinitions
-        this.groupSkillsByCategory()
         this.loading = false
       },
       error: (err) => {
@@ -72,18 +75,12 @@ export class RoleskillsShowComponent implements OnInit {
       }
     })
   }
-  groupSkillsByCategory(): void {
-    this.groupedSkills.clear()
-    
-    this.ksdefinitions.forEach(skill => {
-      if (!this.groupedSkills.has(skill.catid)) {
-        this.groupedSkills.set(skill.catid, [])
-      }
-      this.groupedSkills.get(skill.catid)!.push(skill)
-    })
-  }
 
-  getCategoryKeys(): number[] {
-    return Array.from(this.groupedSkills.keys()).sort((a, b) => a - b)
+  getTasksetMappingTooltip(skill: KsDefinition): string {
+    if (!skill.mappedSubSubFnNames.length) {
+      return 'No taskset mappings'
+    }
+
+    return skill.mappedSubSubFnNames.join('\n')
   }
 }

@@ -38,6 +38,11 @@ import { AuthService } from './auth/auth.service'
                 Employee-Manager
               </a>
             </li>
+            <li *ngIf="user.role === 'org_admin'">
+              <a routerLink="/orgadmin/access-policy" routerLinkActive="active">
+                Access Policy
+              </a>
+            </li>
 
             <!-- Regular user nav (also visible to org_admin) -->
             <li *ngIf="user.role !== 'sys_admin'">
@@ -50,6 +55,16 @@ import { AuthService } from './auth/auth.service'
                 Role Skills
               </a>
             </li>
+              <li *ngIf="user.role !== 'sys_admin'">
+                <a routerLink="/assessment" routerLinkActive="active" [routerLinkActiveOptions]="{exact: false}">
+                  Assessment
+                </a>
+              </li>
+              <li *ngIf="user.role !== 'sys_admin'">
+                <a routerLink="/development-planning" routerLinkActive="active" [routerLinkActiveOptions]="{exact: false}">
+                  Development Planning
+                </a>
+              </li>
           </ul>
           <div class="user-menu">
             <span class="user-name">{{ user.firstName }} {{ user.lastName }}</span>

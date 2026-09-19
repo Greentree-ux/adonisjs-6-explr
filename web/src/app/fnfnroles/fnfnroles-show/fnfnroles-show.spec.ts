@@ -1,8 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing'
 import { HttpClientTestingModule } from '@angular/common/http/testing'
 import { RouterTestingModule } from '@angular/router/testing'
-import { ActivatedRoute } from '@angular/router'
-import { of, throwError } from 'rxjs'
+import { ActivatedRoute, convertToParamMap } from '@angular/router'
+import { BehaviorSubject, of, throwError } from 'rxjs'
+import { vi } from 'vitest'
 
 import { FnfnrolesShowComponent } from './fnfnroles-show.component'
 import { FnfnrolesService } from '../fnfnroles.service'
@@ -11,25 +12,26 @@ describe('FnfnrolesShowComponent', () => {
   let component: FnfnrolesShowComponent
   let fixture: ComponentFixture<FnfnrolesShowComponent>
   let service: FnfnrolesService
+  let paramMap$: BehaviorSubject<ReturnType<typeof convertToParamMap>>
 
   const mockResponse = {
     data: {
       fnfnrole: {
         fnid: 1,
         roleno: 1,
-        fn_name: 'Marketing',
-        role_name: 'Manager'
+        fnName: 'Marketing',
+        roleName: 'Manager'
       },
       roletasksets: [
         {
           fnid: 1,
-          fn_name: 'Marketing',
+          fnName: 'Marketing',
           subfnid: 101,
-          subfn_name: 'Digital Marketing',
+          subfnName: 'Digital Marketing',
           sub2fnord: 1,
-          sub_sub_fn_name: 'Social Media',
+          subSubFnName: 'Social Media',
           roleno: 1,
-          role_name: 'Manager',
+          roleName: 'Manager',
           taskset: 'Manage social media campaigns',
           ei: 'E',
           lmh: 'H'
@@ -39,6 +41,8 @@ describe('FnfnrolesShowComponent', () => {
   }
 
   beforeEach(async () => {
+    paramMap$ = new BehaviorSubject(convertToParamMap({ fnid: '1', roleno: '1' }))
+
     await TestBed.configureTestingModule({
       imports: [
         FnfnrolesShowComponent,
@@ -49,7 +53,7 @@ describe('FnfnrolesShowComponent', () => {
         {
           provide: ActivatedRoute,
           useValue: {
-            paramMap: of(new Map([['fnid', '1'], ['roleno', '1']]))
+            paramMap: paramMap$.asObservable()
           }
         }
       ]
@@ -65,7 +69,7 @@ describe('FnfnrolesShowComponent', () => {
   })
 
   it('should load role details on init', () => {
-    spyOn(service, 'show').and.returnValue(of(mockResponse))
+    vi.spyOn(service, 'show').mockReturnValue(of(mockResponse))
 
     fixture.detectChanges() // triggers ngOnInit
 
@@ -76,9 +80,7 @@ describe('FnfnrolesShowComponent', () => {
   })
 
   it('should handle errors', () => {
-    spyOn(service, 'show').and.returnValue(
-      throwError(() => new Error('Network error'))
-    )
+    vi.spyOn(service, 'show').mockReturnValue(throwError(() => new Error('Network error')))
 
     fixture.detectChanges()
 
@@ -87,10 +89,8 @@ describe('FnfnrolesShowComponent', () => {
   })
 
   it('should handle invalid parameters', () => {
-    const route = TestBed.inject(ActivatedRoute)
-    route.paramMap = of(new Map([['fnid', 'invalid'], ['roleno', '1']]))
-
-    component.ngOnInit()
+    paramMap$.next(convertToParamMap({ fnid: 'invalid', roleno: '1' }))
+    fixture.detectChanges()
 
     expect(component.error).toBeTruthy()
     expect(component.loading).toBe(false)
