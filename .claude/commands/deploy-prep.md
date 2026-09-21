@@ -31,8 +31,14 @@ T0.3 → T1.1 → T1.3 → T2.1 → T2.2 → T4.1 → T5.1 → T5.2 → T6.2 →
 ```
 
 The rest can move. Phase 3 is five independent changes, doable in any order or in parallel
-with Phase 2. T1.2, T1.4 and T5.5 are hygiene and never block a deploy. Phase 6 needs nothing
+with Phase 2. T1.2 and T5.5 are hygiene and never block a deploy. Phase 6 needs nothing
 from the codebase and can be provisioned while Phase 4 is still being written.
+
+**Correction (2026-09-19):** T1.4 was originally filed as hygiene. It is not — the dead Vite
+hook hard-blocks `node ace build`, so **T1.4 precedes T0.3** on the critical path. The real
+path is `T1.4 → T0.3 → T1.1 → T1.3 → T2.1 → …`. Two further build-blocking defects surfaced
+behind it (root `tsconfig.json` compiling `web/`, and an Edge-template exception handler with
+no view layer); both are fixed and recorded under T0.3.
 
 **The one ordering that genuinely matters: T2.1 must land before T4.1.** Building an image
 while generated bundles are still tracked produces a container serving whichever `main-*.js`
@@ -46,23 +52,41 @@ loads, the mistake surfaces as a UI that is inexplicably out of date.
 Every later phase changes the build. Without a recorded known-good state you cannot tell
 whether a Docker build failure is a Docker problem or something the repo already had.
 
-- [ ] **T0.1 — Branch the shipping work.** Create `deploy-prep` off `main`. The working tree
-  has substantial uncommitted change across controllers, models and the Angular app — commit
-  or stash that first so deployment changes stay separable.
-  *Done when:* `git status` is clean on a branch that is not `main`.
+- [x] **T0.1 — Branch the shipping work.** ✅ Done 2026-09-19. Deleted 5 stray shell-accident
+  files and the loose root `.png`/`.svg` assets (backed up outside the repo), committed the
+  development planner / assessment / learning period work as `402fbdc` on `main` (84 files,
+  +12250), then branched `deploy-prep` and committed this checklist as `8cbac3e`.
+  *Done when:* `git status` is clean on a branch that is not `main`. — clean, on `deploy-prep`.
 
-- [ ] **T0.2 — Take a durable database snapshot.** `pg_dump` of `fcm1` — it holds the GIS and
-  DNM functions plus the 36 sub-sub-functions, 144 tasksets and 116 skill definitions loaded
-  for Chemical–Trombay. This dump is both the rollback and the Phase 5 fixture.
+- [x] **T0.2 — Take a durable database snapshot.** ✅ Done 2026-09-19.
+  `~/db-backups/fcm1/fcm1-20260919-143801.dump` (custom format, 214 KB, sha256 recorded
+  alongside). Restored into scratch db `fcm1_restore_test` with **zero errors**; all three
+  matviews returned 4 / 144 / 116 for `fnid=3`, base tables matched (users 16, emp_data 106,
+  tasksets 400), 34 tables + 3 matviews + 8 `pgboss` tables + 55 migrations present in both.
+  Scratch db dropped after verification.
   *Done when:* the dump restores cleanly into a scratch database and `roleskills` returns 116
-  rows for `fnid=3`.
+  rows for `fnid=3`. — verified.
 
-- [ ] **T0.3 — Record and verify the reference build.** Run the production build path by hand,
-  in order: `cd web && npm ci && npm run build` (Angular writes into repo-root `public/`), then
-  `node ace build` at the root, then `cd build && npm ci --omit=dev` and `node bin/server.js`.
-  Note exact versions: Node 22.22.2, npm 11.7.0, PostgreSQL 16.15. Doing it manually once
-  makes the Phase 4 Dockerfile a transcription rather than a guess.
-  *Done when:* the built server boots, serves the Angular app, and a login succeeds.
+- [x] **T0.3 — Record and verify the reference build.** ✅ Done 2026-09-19. Verified toolchain:
+  Node 22.22.2, npm 11.7.0, PostgreSQL 16.15, Ubuntu 24.04.4. The four-step path now runs
+  clean, but **three repo defects had to be fixed first** — all of them production-only, all
+  masked by whichever failed earliest:
+  1. the dead Vite build hook (see T1.4, pulled forward);
+  2. root `tsconfig.json` had no `exclude`, so `node ace build` type-checked the Angular
+     sources in `web/` as CommonJS with node types (~100 errors). Added
+     `"exclude": ["node_modules","build","tmp","web"]`;
+  3. `app/exceptions/handler.ts` rendered Edge templates `pages/errors/{not_found,server_error}`
+     via `ctx.view` — no view layer, no templates, and gated on `app.inProduction`, so it would
+     have crashed **only in production, only on a 404 or 500**. Replaced with
+     `renderStatusPages = false`.
+
+  Reference build measurements: Angular bundle `main-WI4F6RS4.js`, 558.21 kB raw / 123.98 kB
+  transfer (over the 500 kB budget — warning only); `build/` receives `public/` via
+  `metaFiles`; server boots with the pg-boss reminder worker; `GET /` returns the SPA (200) and
+  the bundle is fetchable (558,213 bytes); `POST /api/auth/login` returns 200 with a session
+  cookie that round-trips on a subsequent authenticated `GET /api/fnfnroles`.
+  *Done when:* the built server boots, serves the Angular app, and a login succeeds. — all
+  three verified.
 
 ## Phase 1 — Pin the toolchain
 
@@ -91,13 +115,18 @@ package manifests disagree about Angular.
   *Done when:* `npm ci && node ace build` succeeds at the root and the Angular build is
   unaffected.
 
-- [ ] **T1.4 — Retire the unused Vite scaffolding.** `vite.config.ts` is an empty config with
-  an unused `adonisjs` import, `adonisrc.ts` sets `assetsBundler: false`, and there is no
-  `resources/` directory — yet the Vite build hook still runs on every `node ace build`. The
-  frontend is built entirely by the Angular CLI. Remove the hook, provider and config, or
-  deliberately confirm they stay. Dead build steps break first inside a container and are
-  hardest to diagnose.
-  *Done when:* `node ace build` produces an identical `build/` tree without invoking Vite.
+- [x] **T1.4 — Retire the unused Vite scaffolding.** ✅ Done 2026-09-19, **pulled forward — it
+  hard-blocked T0.3**, contrary to the "hygiene, never blocks a deploy" note below.
+  `node ace build` died at `Could not resolve entry module "index.html"`: `adonisrc.ts` set
+  `assetsBundler: false` but re-registered `onBuildStarting: [@adonisjs/vite/build_hook]` two
+  lines later, and `vite.config.ts` was empty (imported `adonisjs` without calling it, no root,
+  no entry), so Vite looked for a nonexistent root `index.html`. Confirmed dead before removing:
+  `resources/` held 0 files, **zero `.edge` templates exist anywhere**, and no app code imported
+  it. Removed the hook, the `vite_provider`, `vite_middleware` from `start/kernel.ts`,
+  `vite.config.ts`, `config/vite.ts`, the empty `resources/`, and the `@adonisjs/vite`
+  dependency.
+  *Done when:* `node ace build` produces an identical `build/` tree without invoking Vite. —
+  build completes clean.
 
 - [ ] **T1.5 — Confirm both lockfiles install from clean.** Delete both `node_modules` trees,
   run `npm ci` at the root and in `web/`, commit any lockfile change the earlier tasks produced.
@@ -192,8 +221,9 @@ the server cannot substitute its own.
 
 - [ ] **T4.3 — Run migrations as an explicit one-off.** ⚠️ *concurrency.* Keep
   `node ace migration:run` out of the container entrypoint; run it separately against the
-  production database before starting or upgrading. There are 59 migrations — on entrypoint,
-  two instances starting together race through them.
+  production database before starting or upgrading. There are 55 migrations (verified against
+  `adonis_schema` on 2026-09-19; the artifact's "59" is stale) — on entrypoint, two instances
+  starting together race through them.
   *Done when:* a documented command applies migrations and the app image never mutates schema.
 
 - [ ] **T4.4 — Settle the reminder worker topology.** `bin/server.ts` starts the pg-boss worker
