@@ -93,12 +93,25 @@ whether a Docker build failure is a Docker problem or something the repo already
 Four of these are live ambiguities in the repo today — the runtime is undeclared and two
 package manifests disagree about Angular.
 
-- [ ] **T1.1 — Declare the Node version.** ⚠️ *blocks deploy.* Nothing in the repo states one:
-  no `engines` field in either `package.json`, no `.nvmrc`, no `.node-version`. Add
-  `"engines": { "node": ">=22.12 <23" }` to both manifests and a `.nvmrc` containing `22.22.2`.
-  Adonis 6 and Angular 21 both require Node ≥20.19 or ≥22.12; a server defaulting to Node 18
-  fails at boot, Node 24 fails in subtler ways.
-  *Done when:* `npm ci` warns on a deliberately wrong Node version.
+- [x] **T1.1 — Declare the Node version.** ✅ Done 2026-09-22. Added
+  `"engines": { "node": ">=22.12 <23" }` to both `package.json` and `web/package.json`, plus a
+  `.nvmrc` containing `22.22.2`.
+  *Done when:* `npm ci` warns on a deliberately wrong Node version. — verified by temporarily
+  inverting the range to `">=23 <24"` while running 22.22.2 (only one Node is installed, so
+  the range was moved rather than the runtime); npm emitted
+  `npm warn EBADENGINE ... required: { node: '>=23 <24' }, current: { node: 'v22.22.2' }`.
+  Range restored; both manifests now dry-run with 0 EBADENGINE warnings.
+
+  **Enforcement added beyond the original done-when.** `engines` alone is advisory — npm warns
+  and installs anyway with exit code 0, so a server on Node 18 would print the warning, carry
+  on, and fail at boot instead. Committed `.npmrc` and `web/.npmrc` with `engine-strict=true`
+  (npm reads project config from the cwd only, never from parent directories, so `web/` needs
+  its own copy). Verified: with the range inverted, both projects now fail with
+  `npm error code EBADENGINE` and **exit 1** rather than warning; with the correct range both
+  return exit 0. Also confirmed no transitive dependency's own `engines` trips the stricter
+  setting — a real risk with ~830 packages across the two trees, checked rather than assumed.
+  This makes T4.1's Docker build fail loudly on a wrong base image instead of producing a
+  subtly broken one.
 
 - [ ] **T1.2 — Commit to npm as the only package manager.** ⚠️ *silent drift.* `package.json`
   pins `strtok3@8.0.1` three times — `overrides` (npm), `resolutions` (yarn) and
