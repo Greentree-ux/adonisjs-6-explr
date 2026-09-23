@@ -113,20 +113,25 @@ package manifests disagree about Angular.
   This makes T4.1's Docker build fail loudly on a wrong base image instead of producing a
   subtly broken one.
 
-- [ ] **T1.2 — Commit to npm as the only package manager.** ⚠️ *silent drift.* `package.json`
-  pins `strtok3@8.0.1` three times — `overrides` (npm), `resolutions` (yarn) and
-  `pnpm.overrides`. Only the npm one takes effect. Delete the other two and state npm in the
-  README. This transitive conflict has already bitten once; a build under a different package
-  manager drops the override and reintroduces it.
-  *Done when:* only `overrides` remains and `npm ci` still resolves `strtok3` to 8.0.1.
+- [x] **T1.2 — Commit to npm as the only package manager.** ✅ Done 2026-09-22. Removed the
+  `resolutions` (yarn) and `pnpm.overrides` blocks, keeping only npm's `overrides`. No README
+  existed, so one was written — it states npm-only explicitly, with the reason (the pin resolves
+  a transitive conflict under `@adonisjs/core` → `@adonisjs/bodyparser` → `file-type`), and
+  documents the toolchain, the two-project layout, the frontend-before-backend build order and
+  the Mailpit setup.
+  *Done when:* only `overrides` remains and `npm ci` still resolves `strtok3` to 8.0.1. —
+  `npm ls strtok3` reports `strtok3@8.0.1 overridden` after a clean install.
 
-- [ ] **T1.3 — Remove the duplicate Angular dependency set.** ⚠️ *silent drift.* Root
-  `package.json` lists `@angular/core`, `common`, `compiler` and both `platform-browser`
-  packages at `^21.0.6` as runtime deps, while the real app in `web/` declares `^21.0.0`
-  against its own lockfile. Nothing outside `web/` imports Angular. Remove them from the root,
-  along with `@angular/cli` and `@angular/compiler-cli` from root devDependencies.
+- [x] **T1.3 — Remove the duplicate Angular dependency set.** ✅ Done 2026-09-22. Re-verified
+  first that nothing outside `web/` imports `@angular` (grep across `app/`, `config/`,
+  `start/`, `bin/`, `database/`, `tests/`, `providers/` — no hits). Removed all five runtime
+  Angular packages and `@angular/cli` + `@angular/compiler-cli` from root devDependencies.
+  Also removed the orphaned `vite` devDependency — T1.4 deleted its config but left the package.
   *Done when:* `npm ci && node ace build` succeeds at the root and the Angular build is
-  unaffected.
+  unaffected. — clean `npm ci` (780 packages, exit 0) then `node ace build` succeeded;
+  `npm ls @angular/core` at the root is now empty, and the Angular build reproduced
+  `main-WI4F6RS4.js` at 558.21 kB, the **identical content hash** as before, which is what
+  proves the frontend was genuinely unaffected rather than merely still compiling.
 
 - [x] **T1.4 — Retire the unused Vite scaffolding.** ✅ Done 2026-09-19, **pulled forward — it
   hard-blocked T0.3**, contrary to the "hygiene, never blocks a deploy" note below.
@@ -141,9 +146,19 @@ package manifests disagree about Angular.
   *Done when:* `node ace build` produces an identical `build/` tree without invoking Vite. —
   build completes clean.
 
-- [ ] **T1.5 — Confirm both lockfiles install from clean.** Delete both `node_modules` trees,
-  run `npm ci` at the root and in `web/`, commit any lockfile change the earlier tasks produced.
-  *Done when:* both installs succeed with no `npm install` fallback and lockfiles are committed.
+- [x] **T1.5 — Confirm both lockfiles install from clean.** ✅ Done 2026-09-23. Deleted both
+  `node_modules` trees outright and ran `npm ci` in each project: root 780 packages in 12s,
+  `web/` 516 packages in 10s, **both exit 0 with no `npm install` fallback** (`npm ci` aborts
+  outright when a lockfile is out of sync with its manifest, so a clean run is itself the
+  proof). Both lockfiles are `lockfileVersion: 3`.
+
+  The root lockfile absorbed the Phase 1 changes: **−5,563 / +689 lines**, with 40 removed
+  entries referencing `@angular/*` or `vite` and **zero** added ones. `web/package-lock.json`
+  is untouched, as it should be — the Angular project was never what changed. Both builds then
+  ran from that clean install: `node ace build` reported `build completed`, and Angular again
+  produced `main-WI4F6RS4.js` at 558.21 kB, the same content hash as before Phase 1 began.
+
+  **Phase 1 is complete.**
 
 ## Phase 2 — Make the build the source of truth
 
