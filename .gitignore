@@ -9,8 +9,16 @@ tmp
 .env.production.local
 .env.development.local
 
-# Frontend assets compiled code
-public/assets
+# Angular build output.
+#
+# The whole directory is generated: web/angular.json sets outputPath.base to
+# "../public", and the Angular CLI DELETES this directory before every build
+# (deleteOutputPath defaults to true). Nothing hand-placed here survives, so
+# nothing here belongs in git — including favicon.ico, which is a copy of
+# web/public/favicon.ico made by the assets glob.
+#
+# Genuine static assets go in web/public/ instead; Angular copies them in.
+/public/
 
 # Build tools specific
 npm-debug.log

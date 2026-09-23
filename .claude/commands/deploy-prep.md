@@ -166,14 +166,24 @@ Generated frontend bundles are tracked in git and the tracked copy has already d
 what the source produces. Until fixed, what gets deployed depends on git state rather than on
 the Angular code.
 
-- [ ] **T2.1 — Stop tracking generated bundles.** ⚠️ *ships stale UI.* Repo-root `public/` is
-  entirely Angular output — `angular.json` sets `outputPath.base` to `../public`, and the only
-  genuine source asset is `web/public/favicon.ico`, which Angular copies in. `git rm --cached`
-  the generated files and add `/public/*.js`, `/public/*.css`, `/public/index.html`,
-  `/public/*.txt` and `/public/prerendered-routes.json` to `.gitignore` (which already ignores
-  `public/assets`).
+- [x] **T2.1 — Stop tracking generated bundles.** ✅ Done 2026-09-23. Untracked all six files
+  under `public/` and replaced the narrow `public/assets` ignore with `/public/` wholesale.
+
+  **Deviated from the planned fix, with evidence.** The five patterns this task originally
+  listed would have left `favicon.ico` tracked as a supposed source asset. It isn't:
+  `public/favicon.ico` is byte-identical (md5 `05bcfe9a…`) to `web/public/favicon.ico` and is
+  placed there by Angular's assets glob. More decisively, the Angular CLI **deletes the entire
+  output directory before every build** — `deleteOutputPath` defaults to true, confirmed
+  empirically by planting a canary file in `public/` and watching a build remove it. So a
+  tracked file there cannot survive a build, and any hand-placed asset would vanish silently.
+  Genuine static assets belong in `web/public/`, which Angular copies in.
+
   *Done when:* a fresh clone has no `public/*.js`, and the Angular build recreates the
-  directory in full.
+  directory in full. — verified against an actual `git clone` of the branch: the clone contains
+  **no `public/` directory at all** (0 tracked files matching it); `npm --prefix web ci &&
+  npm --prefix web run build` recreated all six files **byte-for-byte identical** to the
+  working copy (`diff -rq` clean); and `node ace build` in that clone then copied them into
+  `build/public` via `metaFiles`. That is the same path the Docker build will take in T4.1.
 
 - [ ] **T2.2 — Add a single root build script.** Add
   `"build:all": "npm --prefix web ci && npm --prefix web run build && node ace build"` so the
