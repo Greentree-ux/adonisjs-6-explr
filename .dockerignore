@@ -1,0 +1,81 @@
+# Docker build context exclusions.
+#
+# .dockerignore does NOT inherit .gitignore — Docker sends everything in this
+# directory to the daemon unless it is listed here, including files git never
+# tracked. Without this file the context is ~611 MB, almost all of it the two
+# dependency trees; with it, ~2 MB.
+
+# ---------------------------------------------------------------------------
+# Dependency trees — reinstalled inside the image from the lockfiles.
+# Copying them in would also ship host-built native binaries (@swc/core is
+# pinned to an exact version and resolves per-platform), which is precisely
+# the class of breakage T4.1 avoids by building on Debian.
+# ---------------------------------------------------------------------------
+node_modules
+web/node_modules
+
+# ---------------------------------------------------------------------------
+# Build output — all of it is regenerated inside the image.
+#
+# public/ matters most: it is the Angular bundle. Sending the host's copy
+# risks the exact failure T2.1 fixed — an image serving whichever main-*.js
+# happened to be lying around rather than the one the image built.
+# ---------------------------------------------------------------------------
+build
+public
+web/dist
+web/.angular
+tmp
+
+# ---------------------------------------------------------------------------
+# Secrets. .env holds APP_KEY, the database password and SMTP credentials, and
+# must never enter an image layer — layers persist even if a later step deletes
+# the file. Production config is supplied at runtime instead (T6.3).
+# .env.example is deliberately kept: it is a template with no real values.
+# ---------------------------------------------------------------------------
+.env
+.env.local
+.env.production.local
+.env.development.local
+
+# ---------------------------------------------------------------------------
+# Version control and tooling metadata.
+# ---------------------------------------------------------------------------
+.git
+.gitignore
+.dockerignore
+.claude
+.editorconfig
+.vscode
+.idea
+.fleet
+
+# ---------------------------------------------------------------------------
+# Documentation and source data. The competency workbooks are imported into
+# Postgres, never read by the running app, and are large; keep them out even
+# though the root is currently clean of them (see T7.1, which loads more).
+# ---------------------------------------------------------------------------
+docs
+*.md
+!README.md
+*.xlsx
+*.xls
+*.csv
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
+
+# ---------------------------------------------------------------------------
+# Logs, dumps and OS noise.
+# ---------------------------------------------------------------------------
+*.log
+npm-debug.log
+yarn-error.log
+*.dump
+*.sql
+.DS_Store
+
+# NOTE: tests/ is deliberately NOT excluded. `node ace build` compiles it as
+# part of the TypeScript project, and the suite is two small spec files.

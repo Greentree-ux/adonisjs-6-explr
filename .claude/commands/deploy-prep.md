@@ -185,17 +185,45 @@ the Angular code.
   working copy (`diff -rq` clean); and `node ace build` in that clone then copied them into
   `build/public` via `metaFiles`. That is the same path the Docker build will take in T4.1.
 
-- [ ] **T2.2 — Add a single root build script.** Add
-  `"build:all": "npm --prefix web ci && npm --prefix web run build && node ace build"` so the
-  ordering — frontend first, because `adonisrc.ts` declares `metaFiles: ['public/**']` and
-  copies `public/` into `build/` — is encoded once rather than remembered.
+- [x] **T2.2 — Add a single root build script.** ✅ Done 2026-09-23. Added
+  `"build:all": "npm --prefix web ci && npm --prefix web run build && node ace build"`. Also
+  normalised the neighbouring `build:web` from `cd web && npm run build` to
+  `npm --prefix web run build` so both use the same idiom.
   *Done when:* `npm run build:all` from a clean tree produces a complete `build/` including
-  the frontend.
+  the frontend. — verified after deleting `build/`, `public/`, `web/node_modules` and
+  `web/.angular`: one command, exit 0, and `build/public` came out byte-identical to what
+  Angular had just written (`diff -rq` clean).
 
-- [ ] **T2.3 — Write `.dockerignore`.** Exclude `node_modules`, `web/node_modules`, `build`,
-  `web/dist`, `web/.angular`, `tmp`, `.git`, `.env` and the loose `.xlsx` / `.png` files in the
-  project root. Without it the build context includes both dependency trees and every workbook.
-  *Done when:* the reported Docker build context is a few megabytes, not hundreds.
+  ⚠️ **Why this script is load-bearing, not convenience.** Running `node ace build` on its own
+  — the obvious thing to do on a fresh clone, now that `public/` is gitignored (T2.1) —
+  **succeeds**. It prints `[ success ] build completed` and exits 0, but `build/public` is
+  simply absent, so the server boots and then 404s the SPA. There is no error to notice. The
+  ordering is not a preference; the build is silently wrong without it. T4.1's Dockerfile must
+  follow this same order, and should prefer `build:all` over hand-rolling the steps.
+
+- [x] **T2.3 — Write `.dockerignore`.** ✅ Done 2026-09-24. Excludes both dependency trees, all
+  build output, `.git`, secrets, docs, tooling metadata and root-level data/image files. Two
+  additions beyond the original list, each for a specific reason recorded in the file:
+  - **`public/`** — sending the host's Angular bundle risks the exact failure T2.1 fixed, an
+    image serving whichever `main-*.js` was lying around rather than the one it built.
+  - **`.env`** — must never enter a layer, since layers persist even if a later step deletes
+    the file. `.env.example` is deliberately kept.
+
+  Both `.npmrc` files are deliberately **kept** in the context, so T1.1's `engine-strict`
+  enforcement applies to the image build too — a wrong base image fails at `npm ci` rather than
+  at runtime.
+
+  *Done when:* the reported Docker build context is a few megabytes, not hundreds. — **1.3 MB
+  across 220 files, against 503 MB excluded** (repo total 611 MB). Docker is not installed on
+  this machine, so this was *computed* rather than read off a `docker build` line: a matcher
+  implementing Docker's rules (patterns relative to context root, `*` not crossing `/`, a
+  matched directory pruning everything beneath it, `!` re-including).
+
+  Then verified the stronger property — that the exclusions do not drop something the build
+  needs, which spot checks cannot prove. The 220 files were materialized into an empty
+  directory and built there in isolation: `npm ci` (780 packages) and `npm run build:all`
+  both succeeded, producing `main-WI4F6RS4.js` at 558.21 kB and a complete `build/` with the
+  frontend and entrypoint present. The context is provably sufficient.
 
 ## Phase 3 — Move deployment-specific config into the environment
 

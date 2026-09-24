@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "build:web": "cd web && npm run build"
+    "build:web": "npm --prefix web run build",
+    "build:all": "npm --prefix web ci && npm --prefix web run build && node ace build"
   },
   "imports": {
     "#controllers/*": "./app/controllers/*.js",
