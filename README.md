@@ -107,7 +107,36 @@ Coverage is thin: two functional spec files for the development planner.
 Nothing covers the competency import, the materialized views or the reminder
 worker, so treat a green run as a smoke check rather than a safety net.
 
+## Configuration
+
+Two templates, both committed and both free of secrets:
+
+| file | for |
+|---|---|
+| `.env.example` | local development — Mailpit, localhost database, `NODE_ENV=development` |
+| `.env.production.example` | a deployed server — `HOST=0.0.0.0`, real relay, proxy trust |
+
+Both list every variable `start/env.ts` validates. The application refuses to
+boot when a required one is missing, so a half-filled file fails immediately
+rather than at runtime.
+
+On the server, copy the production template with a restrictive umask so it is
+never briefly world-readable, and generate a key specific to that deployment:
+
+```bash
+umask 077 && cp .env.production.example .env
+node ace generate:key          # writes APP_KEY into .env
+```
+
+Never reuse the development `APP_KEY`: sessions, signed URLs and remember-me
+tokens all derive from it, so a shared key lets anyone holding the dev key forge
+a production session.
+
 ## Deployment
 
 Deployment readiness is tracked as a checklist in
-`.claude/commands/deploy-prep.md`.
+`.claude/commands/deploy-prep.md` — run `/deploy-prep`.
+
+Remaining multi-timezone work (per-user timezones and their migrations) is
+tracked separately in `.claude/commands/multi-timezone.md`, to be run after
+deployment.

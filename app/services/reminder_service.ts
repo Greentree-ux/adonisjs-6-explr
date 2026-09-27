@@ -141,6 +141,41 @@ export default class ReminderService {
    * Calculate next scheduled time for a reminder
    * Called when saving action plan with reminder data
    */
+  /**
+   * Turn a calendar date into the instant a reminder for it should fire.
+   *
+   * This is the ONLY place in the application where a timezone is applied to a
+   * date, and it exists because the two are different kinds of value. The
+   * `date` columns behind action-plan milestones hold calendar facts with no
+   * time and no zone — "15 June" is the same day wherever it is read. A
+   * reminder, by contrast, fires at a real instant, so something has to decide
+   * which instant "15 June" means. Left implicit, that decision is made by
+   * whatever TZ the Node process was started with, and lands at midnight.
+   *
+   * Here it is explicit: the date is interpreted in the business timezone, at
+   * the configured send hour. Lucid hands these dates over as DateTime values
+   * already carrying the process zone, so the date parts are read off and
+   * rebuilt in the target zone — converting the instant instead would shift the
+   * calendar day whenever the two zones disagree.
+   *
+   * When reminders become per-recipient, this is the seam: take a timezone
+   * argument, defaulting to APP_TIMEZONE, and nothing else needs to change.
+   */
+  static anchorCalendarDate(date: DateTime, zone: string = env.get('APP_TIMEZONE')): DateTime {
+    return DateTime.fromObject(
+      {
+        year: date.year,
+        month: date.month,
+        day: date.day,
+        hour: env.get('REMINDER_SEND_HOUR'),
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      },
+      { zone }
+    )
+  }
+
   static calculateNextScheduledAt(
     actionPlan: DpActionPlan,
     remindRef: ReminderRef,
@@ -168,11 +203,18 @@ export default class ReminderService {
       return null
     }
 
-    if (remindBeforeAfter === 'before') {
-      return referenceDate.minus({ days: remindDays })
-    } else {
-      return referenceDate.plus({ days: remindDays })
-    }
+    /**
+     * Offset in calendar days first, then anchor. Doing it in this order keeps
+     * "three days before the milestone" a statement about dates, so it stays
+     * correct across a daylight-saving boundary — subtracting 72 hours from an
+     * instant would not.
+     */
+    const offsetDate =
+      remindBeforeAfter === 'before'
+        ? referenceDate.minus({ days: remindDays })
+        : referenceDate.plus({ days: remindDays })
+
+    return this.anchorCalendarDate(offsetDate)
   }
 
   /**
@@ -456,9 +498,20 @@ export default class ReminderService {
   }
 
   private static calculateNextRepeatAt(reminder: DpReminder): DateTime | null {
-    const base = reminder.nextScheduledAt ?? DateTime.now()
     const repeatEvery = reminder.repeatEvery && reminder.repeatEvery > 0 ? reminder.repeatEvery : 1
     const repeatUnit = reminder.repeatUnit ?? 'weeks'
+
+    /**
+     * Shifted in the business timezone rather than the process one so that a
+     * repeating reminder keeps its local send hour. Luxon's calendar arithmetic
+     * is zone-aware: "one month later" in a zone that observes daylight saving
+     * stays 09:00 local, whereas the same arithmetic on a UTC instant would
+     * quietly move to 08:00 or 10:00 after a clock change. Asia/Kolkata has no
+     * DST so this is invisible today, and would not be once users span zones
+     * that do.
+     */
+    const zone = env.get('APP_TIMEZONE')
+    const base = (reminder.nextScheduledAt ?? DateTime.now()).setZone(zone)
 
     switch (repeatUnit) {
       case 'days':

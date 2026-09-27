@@ -55,7 +55,7 @@ export default class SysAdminController {
       mgrId: 0,
     })
 
-    const appUrl = env.get('APP_URL', 'http://localhost:3333')
+    const appUrl = env.get('APP_URL')
     const loginUrl = `${appUrl}/login`
     let emailSent = true
 

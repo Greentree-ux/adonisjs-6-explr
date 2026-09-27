@@ -292,7 +292,7 @@ export default class AuthController {
     const passwordReset = await PasswordReset.createForEmail(email)
 
     // Build reset URL for the frontend
-    const appUrl = env.get('APP_URL', 'http://localhost:3333')
+    const appUrl = env.get('APP_URL')
     const resetUrl = `${appUrl}/reset-password?token=${passwordReset.token}&email=${encodeURIComponent(email)}`
 
     // Send email

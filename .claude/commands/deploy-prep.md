@@ -230,41 +230,230 @@ the Angular code.
 Each adds a variable whose default reproduces today's local behaviour. That is what lets the
 same image serve both this machine and the server. These five are independent — any order.
 
-- [ ] **T3.1 — Enable authenticated SMTP.** ⚠️ *blocks all mail.* The `auth` block in
-  `config/mail.ts` is commented out. Uncomment it and add optional `SMTP_USERNAME` /
-  `SMTP_PASSWORD` to `start/env.ts`, applying the block only when a username is set. Keeping it
-  conditional means Mailpit on `localhost:1025` keeps working here with no credentials.
-  *Done when:* mail still sends to Mailpit locally, and to a real relay with credentials set.
+- [x] **T3.1 — Enable authenticated SMTP.** ✅ Done 2026-09-27. `SMTP_USERNAME` and
+  `SMTP_PASSWORD` added to `start/env.ts` as optional strings; `config/mail.ts` now spreads an
+  `auth` block in only when a username is present, instead of carrying it commented out. Both
+  documented in `.env.example`.
 
-- [ ] **T3.2 — Require `APP_URL` in production.** ⚠️ *breaks invite links.* Three controllers —
-  `auth_controller.ts`, `sys_admin_controller.ts`, `org_admin_controller.ts` — read
-  `env.get('APP_URL', 'http://localhost:3333')` when building links. Keep the fallback for
-  development, but fail fast at boot if `NODE_ENV=production` and `APP_URL` is unset. Silently
-  emailing `localhost:3333` links to real employees is not noticed until they have gone out.
-  *Done when:* a production boot without `APP_URL` refuses to start with a clear message.
+  **Added a fail-fast guard:** a username with no password refuses to boot with a message naming
+  both variables. Left unguarded that combination fails at *send* time, which means the app
+  believes it delivered invitations, resets and reminders that never left — the worst shape this
+  failure can take.
 
-- [ ] **T3.3 — Configure `trustProxy`.** ⚠️ *breaks login.* `config/app.ts` never sets it, so
-  Adonis trusts only loopback. Behind a reverse proxy in a separate container the peer address
-  is a private network address, so `request.protocol()` reports `http` even over HTTPS. Drive
-  it from an env var defaulting to current loopback behaviour. Combined with
-  `secure: app.inProduction` in both `config/session.ts` and `config/app.ts`, the session cookie
-  is issued but never returned — a login that appears to succeed, then bounces back to the form.
-  *Done when:* the app behind a proxy logs the correct client IP and issues a session cookie
-  that survives a redirect.
+  *Done when:* mail still sends to Mailpit locally, and to a real relay with credentials set. —
+  both verified for real, not by inspection. Mailpit was restarted with `--smtp-auth-file` so it
+  genuinely **required** authentication, which is what makes the second half a real test rather
+  than a relay politely accepting anything:
 
-- [ ] **T3.4 — Decide the server timezone deliberately.** ⚠️ *data correctness.* `.env.example`
-  says `TZ=UTC`, but every timestamp in `fcm1` is stored at `+05:30`. Employment dates on
-  `emp_data` and `users`, learning period boundaries and the pg-boss reminder schedule all
-  resolve against this; a silent change shifts reminder firing by five and a half hours.
+  | case | result |
+  |---|---|
+  | no credentials → plain relay | sent, arrived in Mailpit |
+  | no credentials → auth-required relay | `530 5.7.0 Authentication required` |
+  | credentials → auth-required relay | sent, arrived |
+  | username, no password | refuses to boot, names both variables |
+
+  That third row is the one that matters: it proves credentials are actually transmitted.
+
+  **Edge case found and fixed.** `.env.example` ships `SMTP_USERNAME=` blank, and an empty value
+  correctly counted as unset — but a *whitespace-only* value (a plausible half-filled template)
+  tripped the guard and refused to boot, blaming `SMTP_PASSWORD` misleadingly. The username is
+  now trimmed so blank-but-present means unset. The password is deliberately **not** trimmed,
+  since surrounding whitespace could be significant in a generated secret.
+
+- [x] **T3.2 — Require `APP_URL` in production.** ✅ Done 2026-09-27. Implemented as a custom
+  validator on `APP_URL` in `start/env.ts` rather than a check in each controller — that is
+  where a boot-time environment failure belongs, and it let all three controllers drop their
+  duplicated `env.get('APP_URL', 'http://localhost:3333')` to a plain `env.get('APP_URL')`.
+  The validator returns a `string`, so the call sites are type-safe without a fallback. Added to
+  `.env.example`.
+
+  The validator does three things beyond presence: falls back to `http://localhost:3333` in
+  development, **rejects a malformed or non-http(s) value** (a bad URL produces broken links just
+  as surely as a missing one), and **strips trailing slashes**, since every call site
+  concatenates a path onto it and `https://example.com//reset-password` is what you get otherwise.
+
+  *Done when:* a production boot without `APP_URL` refuses to start with a clear message. —
+  verified, along with the surrounding matrix:
+
+  | input | result |
+  |---|---|
+  | dev, unset | `http://localhost:3333` |
+  | **prod, unset** | **refuses to boot, message names the variable and why** |
+  | prod, set | uses it |
+  | `https://x.com/` or `///` | normalised to `https://x.com` |
+  | `"  https://x.com/  "` | trimmed and normalised |
+  | prod, whitespace only | refuses to boot |
+  | `not-a-url`, `fcm.example.com` | rejected, message shows the received value |
+  | `ftp://x.com` | rejected, http/https only |
+
+  Then proved it end to end on a **real delivered email**, not just config resolution: booted
+  with `APP_URL=https://fcm.example.com/` (trailing slash deliberate), triggered
+  `POST /api/auth/forgot-password`, and read the message out of Mailpit. The link was
+  `https://fcm.example.com/reset-password?token=…` — correct host, single slash, no
+  `localhost:3333` anywhere.
+
+- [x] **T3.3 — Configure `trustProxy`.** ✅ Done 2026-09-27. `config/app.ts` now sets
+  `trustProxy` from a new optional `TRUST_PROXY`, defaulting to `'loopback'` — today's exact
+  behaviour. Documented in `.env.example`.
+
+  **Reproduced the real failure, not a simulation.** Ran the app on `0.0.0.0` and put a proxy in
+  front that reaches it over the host's LAN address `192.168.1.11`, so the peer is genuinely
+  private-but-not-loopback, exactly as a sibling container is. The proxy terminated real TLS with
+  a self-signed cert and sent `X-Forwarded-Proto: https` plus `X-Forwarded-For: 203.0.113.45`
+  standing in for a browser:
+
+  | | `TRUST_PROXY` unset | `TRUST_PROXY=loopback,uniquelocal` |
+  |---|---|---|
+  | `request.protocol()` | `http` ❌ | `https` ✅ |
+  | `request.secure()` | `false` ❌ | `true` ✅ |
+  | `request.ip()` | `192.168.1.11` (the proxy) ❌ | `203.0.113.45` (the client) ✅ |
+
+  ⚠️ **Correction — this task's stated consequence does not hold for this app.** The description
+  claimed the misdetected protocol leaves the session cookie "issued but never returned",
+  producing a login that succeeds then bounces back to the form. Tested directly through the TLS
+  proxy with `TRUST_PROXY` unset: **login returned 200, the session cookie round-tripped, and an
+  authenticated follow-up request succeeded.** `secure: app.inProduction` in `config/app.ts` and
+  `config/session.ts` is a *static* boolean — Adonis stamps `Secure` on the cookie regardless of
+  the protocol it believes it is on — and the client genuinely is on HTTPS, so the browser
+  returns it. Shield's HSTS header is sent either way, and **nothing in app code reads
+  `request.protocol()` or `request.secure()`** (verified by grep).
+
+  So the demonstrated cost of leaving this unset is **wrong client IPs wherever they are
+  logged** — audit trails, rate-limit decisions, debugging. The protocol misdetection is real but
+  latent; it becomes a live bug the moment any code builds an absolute URL from the request,
+  redirects to HTTPS, or makes a cookie conditional on `request.secure()`. Fix it for those
+  reasons — but do not trust **T6.2's** "breaks login" note as written either: what actually
+  breaks login on plain HTTP is the browser refusing to *send* a `Secure` cookie, which is about
+  HTTPS being present at all, not about `trustProxy`.
+
+  **Also removed a footgun in the obvious value.** Adonis passes a `trustProxy` string straight
+  to `proxyAddr.compile()`, which treats the whole string as ONE trust value — so
+  `TRUST_PROXY=loopback,uniquelocal`, the natural thing to write, **threw at boot**. The list is
+  now split and compiled here, with `proxy-addr` promoted from transitive to direct dependency
+  (plus `@types/proxy-addr`), so the comma form behaves as it does in other frameworks.
+  Validated: `loopback`, `loopback,uniquelocal`, `"loopback, uniquelocal"` (spaces trimmed) and
+  `127.0.0.1,10.0.0.0/8` all boot; `not-an-ip` and `,,` fail at boot with messages naming the
+  variable and the accepted forms.
+
+  *Done when:* the app behind a proxy logs the correct client IP and issues a session cookie that
+  survives a redirect. — client IP correct, session verified across requests.
+
+- [x] **T3.4 — Decide the server timezone deliberately.** ✅ Done 2026-09-27. Scope agreed with
+  the user: groundwork for multiple timezones, no schema change. Initial users are India-based,
+  others will follow.
+
+  ⚠️ **The premise was wrong, and the correction is good news.** This task said "every timestamp
+  in `fcm1` is stored at `+05:30`". Actually **78 columns are `timestamptz`** — they store
+  absolute instants, and `+05:30` is only how psql *renders* them because the DB session zone is
+  `Asia/Kolkata`. Nothing is stored at an offset. Those 78 columns are already
+  timezone-correct, and the Angular `| date` pipe already renders them in the *viewer's* zone, so
+  a London user would see London times today. The display layer needed nothing.
+
+  **The real issue was the boundary between two different kinds of value.** The other 8 columns
+  are `date` — `users`/`emp_data.date_of_joining` and `last_role_change`, and the four
+  `dp_action_plans` milestone dates. Those are calendar facts: "15 June" is the same day wherever
+  read, and `date` is the *correct* type. Converting them to `timestamptz` would have been the
+  damaging move — a London viewer would see a joining date slip to the 14th. But a reminder
+  derived from one must fire at a real instant, and nothing decided which instant. Lucid handed
+  the date over as midnight in the process zone, so reminders landed at midnight-in-whatever-TZ:
+  the two existing rows sit at `05:30+05:30`, which is exactly **00:00 UTC**. Accidental, not chosen.
+
+  **What changed.** Three settings that separate concerns previously conflated:
+
+  | variable | default | role |
+  |---|---|---|
+  | `TZ` | `UTC` | **process** zone — instants and logs unambiguous |
+  | `APP_TIMEZONE` | `Asia/Kolkata` | **business** zone — anchors calendar dates to instants |
+  | `REMINDER_SEND_HOUR` | `9` | deliberate local send hour, replacing midnight |
+
+  `APP_TIMEZONE` is validated against the IANA database at boot, so `Asia/Kolkatta` fails
+  immediately instead of silently becoming UTC and shifting every reminder.
+  `REMINDER_SEND_HOUR` rejects `24`, `abc` and `9.5`.
+
+  All timezone anchoring now lives in **one function**, `ReminderService.anchorCalendarDate`,
+  which already takes a zone parameter defaulting to `APP_TIMEZONE`. Adding per-user timezones
+  later is a `users.timezone` column plus passing it here — not a refactor.
+
+  Verified:
+
+  | case | result |
+  |---|---|
+  | date 2026-06-15, Asia/Kolkata, h9 | `09:00+05:30` = `03:30Z`, calendar day kept |
+  | same, Europe/London | `09:00+01:00` = `08:00Z`, day kept |
+  | same, America/New_York, h18 | `18:00-04:00` = `22:00Z`, day kept |
+
+  **Two ordering bugs fixed while in here.** The day offset is applied *before* anchoring, so
+  "three days before the milestone" stays a statement about dates rather than about 72 hours —
+  correct across a DST boundary. And repeat intervals are now computed in the business zone
+  rather than on a UTC instant: for a monthly reminder crossing the UK clock change, zone-aware
+  arithmetic keeps **09:00 local** where the previous code drifted to **10:00**. Invisible for
+  Asia/Kolkata, which has no DST; not invisible once users span zones that do.
+
+  **Migration risk: none here.** Existing rows keep their old midnight-UTC anchor until
+  recalculated. Both are in the past and pg-boss has no queued jobs. On a system with *future*
+  reminders, they would keep the old hour until their action plan is next edited — benign, but
+  worth knowing rather than discovering.
+
+  *Note for T4.2:* the DB session zone is `Asia/Kolkata` while the app runs UTC. Harmless for
+  `timestamptz` correctness — it only affects how psql prints values — but confusing when
+  debugging, so set the Postgres container's timezone deliberately.
+
+  **Remaining timezone work is tracked separately in
+  [multi-timezone.md](multi-timezone.md) — run `/multi-timezone` after deployment.** It carries
+  per-user timezones and their migration, plus one latent bug found while investigating this
+  task: `LearningPeriodService.formatPeriodLabel` formats a `timestamptz` in the process zone, so
+  a period started before 05:30 IST is labelled with the previous day.
+
   *Done when:* a reminder scheduled for a known local time fires at that time in the container.
+  — **partially verified; the container half defers to T5.3.** The scheduling logic is proven
+  here: a calendar date now resolves to `REMINDER_SEND_HOUR` in `APP_TIMEZONE` and converts to the
+  right UTC instant, across three zones and a DST boundary. What cannot be checked until a
+  container exists is that the *deployed* process actually runs with `TZ=UTC` and that a reminder
+  fires when expected end to end. **T5.3 already covers this** ("schedule a reminder and confirm
+  it fires at the intended local time") — that is where this closes.
 
-- [ ] **T3.5 — Write a production `.env.example` and generate a fresh `APP_KEY`.** Cover the
-  full schema in `start/env.ts`, with `HOST=0.0.0.0` (current `localhost` makes a container
-  refuse outside traffic), `NODE_ENV=production`, `LOG_LEVEL=info`, and a key from
-  `node ace generate:key`. Sessions, signed URLs and remember-me tokens all derive from
-  `APP_KEY` — reusing the dev key on a public server exposes every session.
+- [x] **T3.5 — Write a production `.env.example` and generate a fresh `APP_KEY`.** ✅ Done
+  2026-09-27. Added `.env.production.example` as a separate, grouped template with production
+  defaults — `HOST=0.0.0.0`, `NODE_ENV=production`, `LOG_LEVEL=info`, `TZ=UTC`,
+  `TRUST_PROXY=loopback,uniquelocal` — and every secret left blank with the reason it matters
+  beside it. `.env.example` stays the development template.
+
+  **`APP_KEY` is deliberately blank, not pre-generated.** A committed example containing a real
+  key is a key people will actually deploy. The file carries the command instead
+  (`node ace generate:key --show`). Generation was exercised with `--show` specifically so the
+  dev `.env` was not rewritten — the plain command writes into `.env` and would have invalidated
+  every existing local session. Verified by md5 that `.env` was untouched.
+
+  **Audited rather than eyeballed.** Compared `start/env.ts` against both templates
+  programmatically, and separately compared every `env.get()` call site against the schema.
+  Three findings:
+
+  1. ⚠️ **`APP_NAME` was read but never validated.** `config/logger.ts` does
+     `env.get('APP_NAME')`, yet it was absent from the schema *and* from `.env.example` — so a
+     setup from the template produced log lines with **no service name**, invisible locally and
+     unhelpful in aggregated production logs. Now declared with a default (not required, so an
+     existing `.env` without it still boots) and present in both templates.
+  2. **`MAIL_FROM_ADDRESS` / `MAIL_FROM_NAME` were validated but undocumented.** Added to both.
+     Production needs them: the fallback `noreply@example.com` is rejected by real relays as an
+     unverified sender, and that bounce reads like a credentials fault.
+  3. **`DB_CONNECTION=pg` was documented but dead.** `config/database.ts` hardcodes
+     `connection: 'postgres'`; nothing reads the variable. Removed, with a comment saying why, so
+     nobody sets `mysql` and waits for an effect. (`mysql2` is still an unused dependency — not
+     removed here, worth a look at some point.)
+
   *Done when:* the file lists every variable `start/env.ts` validates, with no real secrets
-  committed.
+  committed. — both templates cover all **23** validated variables (plus `TZ`, correctly
+  unvalidated since Node reads it directly, before `.env` is even loaded). Secret scan clean: all
+  secret-bearing fields blank, and neither template contains the real dev `APP_KEY` or
+  `DB_PASSWORD`.
+
+  **Proved the template actually works**, rather than only that it is complete: filled its blanks
+  with local values, swapped it in as `.env`, and booted — the app came up in production mode on
+  `0.0.0.0:3404` with the pg-boss worker started and `GET /` returning 200. That is what caught
+  the missing `APP_NAME`, since the log line came out without its name field. The real `.env` was
+  restored immediately afterwards and verified byte-identical by md5.
+
+  **Phase 3 is complete.**
 
 ## Phase 4 — Containerize
 

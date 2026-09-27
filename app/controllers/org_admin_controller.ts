@@ -737,7 +737,7 @@ export default class OrgAdminController {
     }
 
     const { invitations } = await request.validateUsing(inviteEmployeesValidator)
-    const appUrl = env.get('APP_URL', 'http://localhost:3333')
+    const appUrl = env.get('APP_URL')
 
     const results: { email: string; status: string }[] = []
 
