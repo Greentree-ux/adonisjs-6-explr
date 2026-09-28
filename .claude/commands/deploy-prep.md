@@ -460,13 +460,75 @@ same image serve both this machine and the server. These five are independent �
 A transcription of the verified Phase 0 build path, each runtime pinned by major version so
 the server cannot substitute its own.
 
-- [ ] **T4.1 — Write the multi-stage Dockerfile on Debian, not Alpine.** ⚠️ *native binary.*
-  Three stages on `node:22-bookworm-slim`: build the Angular app into `public/`; run
-  `node ace build` at the root; copy `build/` into a clean runtime stage, `npm ci --omit=dev`
-  inside it, `CMD ["node", "bin/server.js"]`. `@swc/core` is pinned to exactly `1.10.1` and
-  ships as a platform-specific native binary — Alpine's musl libc resolves a different build
-  and fails in ways that look like corrupt dependencies.
-  *Done when:* `docker build` succeeds from a clean clone and the image runs `node bin/server.js`.
+- [x] **T4.1 — Write the multi-stage Dockerfile on Debian, not Alpine.** ✅ Done 2026-09-28.
+  Three stages on `node:22-bookworm-slim` exactly as specified: `web-build` compiles Angular
+  into `/app/public`, `server-build` runs `node ace build`, and a clean `runtime` stage takes
+  only `build/` plus `npm ci --omit=dev`, with `CMD ["node", "bin/server.js"]`.
+
+  **Docker is installed on this machine now (29.8.1), unlike at T2.3** — so everything below is
+  measured against real builds and a running container rather than computed.
+
+  Four things the task description did not anticipate, each of which would have produced a
+  broken or subtly wrong image:
+
+  1. **The Angular output path escapes its own project.** `web/angular.json` sets
+     `outputPath.base` to `../public`, so the bundle lands *outside* `web/`. The host layout
+     has to be reproduced in the stage (`WORKDIR /app/web`, not `/app`) or the build writes to
+     a directory the next stage never looks at.
+  2. **`node ace build` does not copy `.npmrc` into `build/`.** The runtime `npm ci --omit=dev`
+     would therefore have run *without* T1.1's `engine-strict`, quietly undoing the enforcement
+     on the one install that ends up in the shipped image. Copied in explicitly.
+  3. **`HOST` must be `0.0.0.0` in the image.** The development default binds loopback inside
+     the container's own network namespace, which is unreachable from outside it — the app
+     looks healthy in its logs and refuses every connection.
+  4. **`TZ=UTC` is baked in**, per T3.4's decision. The business timezone stays a separate
+     runtime concern (`APP_TIMEZONE`), which is the separation that task established.
+
+  Migrations are deliberately **not** in the entrypoint — that is T4.3, and the comment in the
+  Dockerfile says so, so nobody helpfully adds them later.
+
+  *Done when:* `docker build` succeeds from a clean clone and the image runs
+  `node bin/server.js`. — both verified, against an actual `git clone` of the branch built with
+  `--no-cache`:
+
+  | check | result |
+  |---|---|
+  | clean clone, `--no-cache` build | succeeds; context **1.36 MB**, matching T2.3's computed 1.3 MB |
+  | Angular bundle inside the image | `main-WI4F6RS4.js`, md5 `23f78905…` — **identical to the reference build** |
+  | `node bin/server.js` | `started HTTP server on 0.0.0.0:3333`, pg-boss worker started |
+  | `GET /` | 200, the SPA index |
+  | `GET /main-WI4F6RS4.js` | 200, 558,213 bytes |
+  | `pgboss` schema | 8 tables created in the throwaway database |
+  | wrong base image (`node:20`) | both `npm ci` stages fail `EBADENGINE`, exit 1, **no image produced** |
+  | secrets | no `.env*` in the image |
+  | process user | uid 1000 (`node`), not root |
+  | `SIGTERM` | exits in 1.4 s, not Docker's 10 s kill timeout |
+
+  That bundle md5 is the line that matters: it proves the image built its own frontend and got
+  byte-for-byte what the source produces, which is precisely the failure mode T2.1 was fixed to
+  prevent. The `node:20` row proves T1.1's `engine-strict` does the job it was added for — a
+  wrong base image fails loudly at install instead of producing a subtly broken image.
+
+  The dev database on `127.0.0.1:5432` was never touched: the boot test ran against a throwaway
+  `postgres:16` container on its own network, removed afterwards. Both test images were deleted.
+  No graceful-shutdown shim (`tini`/`dumb-init`) is needed — Adonis handles `SIGTERM` as PID 1,
+  which the 1.4 s stop demonstrates.
+
+  ⚠️ **Finding for follow-up — the runtime image is 630 MB, and ~107 MB of that is dead weight.**
+  `node_modules` in the *production* image is 230 MB, of which `@swc/core` is 107 MB — it ships
+  **both** native variants, `core-linux-x64-gnu` (48 MB) and `core-linux-x64-musl` (59 MB).
+  Nothing at runtime uses it. It arrives because **`ts-node` sits in the root `dependencies`,
+  not `devDependencies`**, and pulls `@swc/core` and `typescript` in as peers. The built
+  entrypoint does not need it: `build/ace.js` is rewritten by the assembler to a bare
+  `await import('./bin/console.js')` and **never registers the `ts-node/esm` hook** — only the
+  dev-time root `ace.js` does. (`@adonisjs/assembler` and `typescript` are also present but
+  legitimately so: `@adonisjs/core` declares the assembler as a regular dependency, which is
+  upstream's choice, not this repo's.)
+
+  Not changed here. Moving a dependency between sections is a Phase 1 concern, it changes the
+  root lockfile, and it needs its own clean `npm ci` plus a rebuild to confirm nothing at
+  runtime reaches for `ts-node` — which is work with its own verification, not a footnote to
+  this task. The image is correct as it stands; it is merely fatter than it needs to be.
 
 - [ ] **T4.2 — Compose the app with a pinned `postgres:16`.** App, database and Caddy, with a
   named volume for Postgres data, a healthcheck on the database, and `depends_on` gating app
