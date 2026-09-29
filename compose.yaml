@@ -1,0 +1,190 @@
+# =============================================================================
+# Production stack: reverse proxy, application, database.
+#
+#   docker compose up -d
+#
+# On the server, ./.env IS the production environment file (T6.3) and no flags
+# are needed. To bring the stack up locally without disturbing the development
+# .env, see "Local testing" below.
+#
+# Migrations are deliberately NOT run by any service here. See T4.3: the app
+# image never mutates schema, and `node ace migration:run` is a separate,
+# explicit step so that two instances starting together cannot race through
+# the 55 migrations.
+#
+# -----------------------------------------------------------------------------
+# Local testing
+# -----------------------------------------------------------------------------
+# Compose reads ./.env for ${...} interpolation, and that file holds development
+# values on a developer machine. Point both at a separate file instead:
+#
+#   cp .env.production.example .env.docker      # then fill it in, including:
+#     ENV_FILE=.env.docker                      # so the app container reads it too
+#     DB_HOST=db                                # the service name below
+#     CADDY_HTTP_PORT=8080                      # avoid privileged/occupied ports
+#     CADDY_HTTPS_PORT=8443
+#
+#   docker compose --env-file .env.docker up -d
+#
+# Two mechanisms are in play and they are genuinely separate: --env-file sets
+# the variables Compose interpolates into THIS file, while env_file: sets the
+# variables inside the app container. ENV_FILE ties them together so one flag
+# is enough.
+#
+# .env.docker is excluded from git and from the Docker build context.
+#
+# One wrinkle when the published ports are not 80/443: Caddy's automatic
+# HTTP->HTTPS redirect names the canonical port, so http://localhost:8080/
+# redirects to https://localhost/ and not to https://localhost:8443/. That is
+# correct behaviour on the server, where the ports ARE 80 and 443. Locally,
+# request the HTTPS URL directly rather than following the redirect.
+# =============================================================================
+
+name: fcm
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16, pinned to the major version.
+  #
+  # pg-boss 12 has already created its "pgboss" schema at 16 and runs its own
+  # internal migrations; a different major would put those on a path this
+  # database has not taken. The development machine is on 16.15.
+  #
+  # Skip this service entirely if you choose managed Postgres (T6.4) — point
+  # DB_HOST at the provider and drop the depends_on block below.
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16
+    restart: unless-stopped
+
+    # Single source of truth: the app's DB_* variables also configure the
+    # server, so the two cannot drift into "password authentication failed".
+    # ":?" makes a missing value fail before anything starts, rather than
+    # silently creating a database nobody meant.
+    environment:
+      POSTGRES_USER: ${DB_USER:?DB_USER must be set (see .env.production.example)}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set (see .env.production.example)}
+      POSTGRES_DB: ${DB_DATABASE:?DB_DATABASE must be set (see .env.production.example)}
+      TZ: UTC
+      PGTZ: UTC
+
+    # T3.4 left a note to set the container's timezone deliberately rather than
+    # inherit it. The application process runs UTC; matching the database server
+    # means psql prints the same instants the app logs, which is the difference
+    # between a confusing debugging session and a quick one. It does not affect
+    # correctness — the 78 timestamptz columns store absolute instants either
+    # way — only how values are rendered.
+    command:
+      - postgres
+      - -c
+      - timezone=UTC
+      - -c
+      - log_timezone=UTC
+
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+    # -h 127.0.0.1 is load-bearing, not decoration. During first-run
+    # initialisation the postgres entrypoint starts a TEMPORARY server for the
+    # bootstrap steps, listening on the unix socket only. A socket-based
+    # pg_isready answers "accepting connections" against that temporary server,
+    # the healthcheck passes, depends_on releases the app — and then the
+    # temporary server is shut down and restarted, so the app's first
+    # connections are refused. Checking over TCP waits for the real one.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+    # Deliberately not published. The app reaches it over the Compose network,
+    # and publishing 5432 would collide with the development Postgres on the
+    # host. Reach it for maintenance with:
+    #   docker compose exec db psql -U "$DB_USER" -d "$DB_DATABASE"
+
+  # ---------------------------------------------------------------------------
+  # The application (T4.1's Dockerfile).
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fcm-app:local
+    restart: unless-stopped
+
+    # The container's own environment. On the server this is the production
+    # .env described in T6.3; locally, point ENV_FILE at .env.docker.
+    env_file:
+      - ${ENV_FILE:-.env}
+
+    # Set here rather than left to the env file because getting them wrong is
+    # invisible: the wrong HOST binds loopback inside the container's network
+    # namespace and Caddy returns 502 with nothing in the app's log, and
+    # TRUST_PROXY=loopback (the default) silently records Caddy's address as
+    # every client's IP, because a sibling container is not loopback.
+    environment:
+      HOST: 0.0.0.0
+      TRUST_PROXY: ${TRUST_PROXY:-loopback,uniquelocal}
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    # No curl or wget in node:22-bookworm-slim, and adding one to the image for
+    # this would be a needless dependency — Node 22 has global fetch.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:'+(process.env.PORT||3333)+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+    # Not published either: Caddy is the only way in. Exposing 3333 on the host
+    # would bypass TLS and the proxy, which is exactly the path that skips the
+    # X-Forwarded-* headers TRUST_PROXY exists to interpret.
+
+  # ---------------------------------------------------------------------------
+  # Caddy — TLS termination and reverse proxy.
+  #
+  # HTTPS is not optional for this application: `secure: app.inProduction` on
+  # the session cookie means a browser will not return it over plain HTTP, so
+  # nobody can log in (T6.2).
+  # ---------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+
+    environment:
+      # "localhost" makes Caddy issue a certificate from its own internal CA,
+      # which is what lets T5.3 exercise the real HTTPS paths locally. Set this
+      # to the public hostname in production and Caddy obtains a real
+      # certificate over ACME instead (T6.2).
+      CADDY_SITE_ADDRESS: ${CADDY_SITE_ADDRESS:-localhost}
+
+    ports:
+      - '${CADDY_HTTP_PORT:-80}:80'
+      - '${CADDY_HTTPS_PORT:-443}:443'
+      # HTTP/3. Harmless if the client never uses it.
+      - '${CADDY_HTTPS_PORT:-443}:443/udp'
+
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Named, not bind-mounted: caddy_data holds the ACME account key and the
+      # issued certificates. Losing it means re-issuing on every restart, which
+      # Let's Encrypt rate-limits.
+      - caddy_data:/data
+      - caddy_config:/config
+
+    depends_on:
+      app:
+        condition: service_started
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

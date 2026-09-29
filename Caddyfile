@@ -1,0 +1,44 @@
+# =============================================================================
+# Caddy reverse proxy for the FCM competency application.
+#
+# CADDY_SITE_ADDRESS (set in compose.yaml) decides how TLS is obtained:
+#
+#   localhost           - Caddy issues from its own internal CA. Real HTTPS,
+#                         self-signed root, no network required. This is what
+#                         makes the T5.3 checks possible on a laptop.
+#   fcm.example.com     - Caddy obtains a real certificate over ACME and
+#                         renews it automatically (T6.2). Requires the DNS A
+#                         record to resolve here and ports 80 and 443 to be
+#                         reachable from the internet.
+#
+# HTTP is redirected to HTTPS automatically; Caddy does that for any site
+# address that is not explicitly prefixed with "http://". That redirect is not
+# cosmetic here — the session cookie carries Secure in production, so a browser
+# on plain HTTP would never send it back and login would fail with no error.
+# =============================================================================
+
+{
+	# Certificates are issued without an account email; Caddy only needs one to
+	# send expiry warnings. Uncomment and set a real address before going live.
+	# email ops@example.com
+
+	# The admin API is not reachable from outside the container anyway, but
+	# there is nothing here that uses it.
+	admin off
+}
+
+{$CADDY_SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	# "app" is the Compose service name, resolved on the internal network.
+	# Caddy sets X-Forwarded-For, X-Forwarded-Proto and X-Forwarded-Host on its
+	# own; the application reads them only from peers listed in TRUST_PROXY,
+	# which must include the Docker network range (uniquelocal) because a
+	# sibling container is not loopback.
+	reverse_proxy app:3333
+
+	log {
+		output stdout
+		format console
+	}
+}

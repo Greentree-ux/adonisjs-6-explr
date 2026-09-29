@@ -530,11 +530,104 @@ the server cannot substitute its own.
   runtime reaches for `ts-node` — which is work with its own verification, not a footnote to
   this task. The image is correct as it stands; it is merely fatter than it needs to be.
 
-- [ ] **T4.2 — Compose the app with a pinned `postgres:16`.** App, database and Caddy, with a
-  named volume for Postgres data, a healthcheck on the database, and `depends_on` gating app
-  startup. You are on 16.15 and pg-boss 12 has already created its `pgboss` schema at that
-  version; pinning the major keeps its internal migrations on the path already taken.
-  *Done when:* `docker compose up` brings up all three and the app connects.
+- [x] **T4.2 — Compose the app with a pinned `postgres:16`.** ✅ Done 2026-09-29. Added
+  `compose.yaml` (three services — `db` on `postgres:16`, `app` built from T4.1's Dockerfile,
+  `caddy` on `caddy:2-alpine`) and a `Caddyfile`. Named volumes `pgdata`, `caddy_data` and
+  `caddy_config`; a TCP healthcheck on the database; `depends_on: condition: service_healthy`
+  gating the app.
+
+  **The healthcheck needed `-h 127.0.0.1`, and that turned out to be load-bearing rather than
+  stylistic.** On first run the postgres entrypoint starts a *temporary* bootstrap server that
+  listens on the unix socket only. The obvious `pg_isready -U … -d …` talks to that socket, so
+  it reports "accepting connections" during initialisation — the healthcheck would pass,
+  `depends_on` would release the app, and the temporary server would then be shut down and
+  restarted underneath it. Measured rather than assumed, with a 20-second init script:
+
+  | during init | `pg_isready` (socket) | `pg_isready -h 127.0.0.1` |
+  |---|---|---|
+  | t=6s | **accepting** ❌ | refused ✅ |
+  | t=9s | **accepting** ❌ | refused ✅ |
+  | t=12s | **accepting** ❌ | refused ✅ |
+  | t=18s (init done) | accepting | accepting ✅ |
+
+  So the socket form is wrong for exactly the window the healthcheck exists to cover.
+
+  **Other decisions worth recording.**
+  - **Postgres timezone set deliberately**, closing T3.4's note: `-c timezone=UTC -c
+    log_timezone=UTC` as explicit server flags rather than relying on whatever the OS TZ was at
+    `initdb` time. It changes nothing about correctness — the 78 `timestamptz` columns store
+    absolute instants either way — only that psql now prints the same instants the app logs.
+  - **Neither 5432 nor 3333 is published.** Caddy is the only ingress, so the proxy cannot be
+    bypassed, and the container's Postgres cannot collide with the development one on the host.
+    Maintenance goes through `docker compose exec db psql`.
+  - **Database credentials interpolate from the app's own `DB_*` variables** into `POSTGRES_*`,
+    so the two cannot drift into "password authentication failed". Each uses `${VAR:?message}`,
+    which fails before anything starts.
+  - **The app healthcheck uses Node's global `fetch`.** `node:22-bookworm-slim` has neither
+    curl nor wget, and adding one purely for a healthcheck would be a dependency for its own
+    sake.
+  - **`HOST` and `TRUST_PROXY` are pinned in the service rather than left to the env file**,
+    because both fail invisibly: the wrong `HOST` gives a 502 with a clean application log, and
+    the default `TRUST_PROXY=loopback` silently logs Caddy's address as every client's IP,
+    since a sibling container is not loopback.
+  - Managed Postgres (T6.4) stays available: drop the `db` service and its `depends_on`, point
+    `DB_HOST` at the provider. Noted in the file.
+  - Migrations are deliberately absent from every service (T4.3), with a comment saying so, so
+    that nobody helpfully adds them to the entrypoint later.
+
+  ⚠️ **Compose interpolation and container environment are two different mechanisms**, and
+  conflating them is easy. `--env-file` sets what Compose substitutes into `compose.yaml`;
+  `env_file:` sets what exists inside the container. On the server they coincide, because `.env`
+  *is* the production file (T6.3) and `docker compose up -d` needs no flags. Locally they must
+  not, or the stack would consume the development `.env`. `env_file: ${ENV_FILE:-.env}` ties the
+  two together so one flag is enough:
+
+  ```
+  cp .env.production.example .env.docker   # fill in; set ENV_FILE=.env.docker, DB_HOST=db
+  docker compose --env-file .env.docker up -d
+  ```
+
+  `.env.docker` was added to **both** `.gitignore` and `.dockerignore` — it holds the same
+  secrets as `.env`, so it must reach neither git nor an image layer.
+
+  ⚠️ **Found while testing: the development `.env` is not parseable by Compose.** Line 16 is a
+  comment missing its `#` (`For local development, you can use Mailpit or similar:`). Adonis's
+  dotenv reader ignores the line; Compose rejects the whole file with `unexpected character ","
+  in variable name`, and then proceeds with **no variables at all**. Left alone — it is the
+  developer's gitignored local file and the documented workflow never has Compose read it — but
+  the failure mode matters if the same slip ever reaches a production `.env`. It degrades safely
+  here: the `${VAR:?}` guards turn "no variables" into an immediate error naming each missing
+  one, rather than a database quietly created with unintended credentials. Verified by running
+  Compose against `.env.production.example`, whose deliberately blank values produce exactly
+  that, naming `DB_USER`, `DB_PASSWORD` and `DB_DATABASE`.
+
+  ⚠️ **Non-standard published ports change the redirect target.** Caddy's automatic HTTP→HTTPS
+  redirect names the canonical port, so locally `http://localhost:8080/` returns 308 to
+  `https://localhost/`, not `https://localhost:8443/`. Correct on the server, where the ports
+  *are* 80 and 443; locally, request the HTTPS URL directly. Noted in `compose.yaml` so T5.3
+  does not read it as a bug.
+
+  *Done when:* `docker compose up` brings up all three and the app connects. — verified:
+
+  | check | result |
+  |---|---|
+  | `docker compose up -d` | all three up; ordering visible as `db Waiting → db Healthy → app Started` |
+  | **the app connects** | pg-boss created its **8 tables** in the container's Postgres — a real authenticated connection, not just a boot |
+  | database timezone | `timezone` and `log_timezone` both `UTC` |
+  | HTTPS through Caddy | 200 over HTTP/2, certificate **validated against Caddy's internal CA root** (`ssl_verify_result=0`), not `--insecure` |
+  | Angular bundle through the proxy | 200, 558,213 bytes |
+  | named volume for Postgres data | marker row written → `docker compose down` → `up` → **row still present** |
+  | healthchecks | `app` and `db` both report `healthy` |
+  | missing `DB_*` | Compose refuses to start and names each variable |
+  | secrets | no `.env*` inside the built image |
+  | development untouched | dev `.env` md5 unchanged (`02c6d37c…` before and after); container 5432 unpublished, the development Postgres was never contacted |
+
+  Validating the certificate against Caddy's own root rather than passing `--insecure` is what
+  makes the HTTPS row meaningful — it proves TLS termination genuinely works, which is what
+  T5.3's login and session checks will depend on.
+
+  Afterwards the stack was taken down with `down -v` and the test image removed, so no
+  throwaway state remains. `.env.docker` is left in place for T5.1.
 
 - [ ] **T4.3 — Run migrations as an explicit one-off.** ⚠️ *concurrency.* Keep
   `node ace migration:run` out of the container entrypoint; run it separately against the

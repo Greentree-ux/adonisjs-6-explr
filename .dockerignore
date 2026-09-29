@@ -34,6 +34,7 @@ tmp
 # .env.example is deliberately kept: it is a template with no real values.
 # ---------------------------------------------------------------------------
 .env
+.env.docker
 .env.local
 .env.production.local
 .env.development.local

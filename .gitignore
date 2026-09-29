@@ -9,6 +9,11 @@ tmp
 .env.production.local
 .env.development.local
 
+# Local Compose environment (T4.2). Holds the same secrets as .env — it is a
+# filled-in copy of .env.production.example used to run the stack locally
+# without disturbing the development .env.
+.env.docker
+
 # Angular build output.
 #
 # The whole directory is generated: web/angular.json sets outputPath.base to
