@@ -25,6 +25,11 @@ tmp
 # Genuine static assets go in web/public/ instead; Angular copies them in.
 /public/
 
+# Database dumps taken by scripts/migrate.sh before each migration. They
+# contain the full production dataset and must never be committed. T7.2 moves
+# scheduled backups off the host entirely.
+backups/
+
 # Build tools specific
 npm-debug.log
 yarn-error.log

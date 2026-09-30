@@ -90,6 +90,62 @@ cannot race each other through them:
 cd build && node ace migration:run
 ```
 
+## Database migrations
+
+Migrations are **not** run by the container. Nothing in the image or in
+`compose.yaml` touches the schema, so starting or restarting the application
+can never change it. Apply them as an explicit step before starting or
+upgrading:
+
+```bash
+./scripts/migrate.sh                          # on the server, uses ./.env
+./scripts/migrate.sh --env-file .env.docker   # local stack
+```
+
+The script brings the database up, takes a `pg_dump` into `backups/` with a
+checksum beside it, applies the migrations, and then **verifies by counting**
+applied migrations against the number of migration files in the image. It
+refuses to report success unless those match.
+
+That count is the point of the script, because the exit code cannot be
+trusted. In production, `node ace migration:run` **without** `--force`
+auto-answers its own confirmation prompt with "no", applies nothing, and exits
+**0** — a deploy step checking `$?` would report success having done nothing,
+and the application would then start against an empty schema. Worse, it starts
+*healthily*: the container healthcheck serves the SPA without touching the
+database. Never run the bare command; use the script.
+
+### Rolling back
+
+**`node ace migration:rollback` is not the rollback procedure.** On a fresh
+database every migration is applied in a single batch, and a bare
+`migration:rollback` rolls back the last batch — which is all of them. Measured
+on a freshly migrated database, one such command left 2 bookkeeping tables out
+of 34 and destroyed all 3 materialized views. Those views are the application's
+read path, so the symptom is an API quietly returning empty results rather than
+an error.
+
+To undo a deployment: restore the dump the script took and redeploy the
+previous image tag.
+
+If you ever genuinely need `migration:rollback`, take a fresh dump first and
+pass an explicit `--batch` or `--step`. `migration:fresh`, `migration:reset`
+and `migration:refresh` are not used by this project — `fresh` drops every
+table.
+
+### Managed Postgres
+
+`scripts/migrate.sh` expects the `db` service from `compose.yaml`, which is
+also where it gets `pg_dump`. Against a managed instance, take the provider's
+snapshot instead and apply migrations with:
+
+```bash
+docker compose run --rm --no-deps app node ace migration:run --force
+```
+
+then confirm the applied count matches the migration files in the image —
+`node ace migration:status` should show nothing pending.
+
 ## Background jobs
 
 The reminder worker runs in-process via `bin/server.ts`, using pg-boss. Set
