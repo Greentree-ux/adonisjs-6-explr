@@ -629,12 +629,83 @@ the server cannot substitute its own.
   Afterwards the stack was taken down with `down -v` and the test image removed, so no
   throwaway state remains. `.env.docker` is left in place for T5.1.
 
-- [ ] **T4.3 — Run migrations as an explicit one-off.** ⚠️ *concurrency.* Keep
+- [ ] **T4.3 — Run migrations as an explicit one-off.** ⚠️ *destructive adjacency.* Keep
   `node ace migration:run` out of the container entrypoint; run it separately against the
   production database before starting or upgrading. There are 55 migrations (verified against
-  `adonis_schema` on 2026-09-19; the artifact's "59" is stale) — on entrypoint, two instances
-  starting together race through them.
+  `adonis_schema` on 2026-09-19; the artifact's "59" is stale).
   *Done when:* a documented command applies migrations and the app image never mutates schema.
+
+  **Investigated 2026-09-30 before writing anything, against a throwaway Compose database (the
+  development database was only read from).** Two findings change what this task has to
+  produce, and one correction to its stated premise.
+
+  ⚠️ **1. On a fresh database all 55 migrations land in ONE batch, and `migration:rollback`
+  with no arguments rolls back the last batch.** That makes the bare rollback command mean
+  something completely different on a new server than it does on this machine:
+
+  | | batches | what the last batch is |
+  |---|---|---|
+  | development database, grown over time | 18 | 2 migrations |
+  | **fresh database, one `migration:run`** | **1** | **all 55** |
+
+  Measured blast radius of a single `node ace migration:rollback --force` with no batch
+  argument on a freshly migrated database:
+
+  | before | after |
+  |---|---|
+  | 34 tables | **2** — only `adonis_schema` and `adonis_schema_versions` |
+  | 3 materialized views | **0** |
+  | 55 rows in `adonis_schema` | **0** |
+
+  All 55 migrations implement `down()` and really do drop their objects, so there is no
+  accidental safety in an unfinished `down()`. The trap is that **this machine teaches the
+  opposite intuition**: someone who has used `migration:rollback` here, where it undoes two
+  migrations, would reasonably expect the same on the server, where it empties the database.
+  The three materialized views are the app's read path (T5.2), so their loss is not even
+  loud — the API returns empty results rather than erroring.
+
+  ⚠️ **2. Without `--force`, `migration:run` in production silently does nothing and exits 0.**
+  Non-interactively the confirmation prompt auto-answers "no":
+
+  ```
+  ❯ You are in production environment. Want to continue running migrations? (y/N) ‣ false
+  ```
+
+  Measured: **0 tables created, exit code 0.** A deploy step that runs the bare command and
+  checks `$?` therefore reports success having done nothing, and the app then boots against an
+  empty schema. This is the failure this task most needs to prevent, and it is invisible.
+  (The same guard covers `rollback`, where it is protective — a scripted bare
+  `migration:rollback` also no-ops, verified with all 34 tables left standing and exit 0.
+  `--force` is the single word separating both outcomes.)
+
+  **Correction to this task's premise — the concurrency risk is milder than stated.** The
+  original note said two instances starting together "race through" the migrations. They do
+  not interleave: Lucid acquires a **Postgres advisory lock outside the transaction**, so a
+  second migrator fails with `E_UNABLE_ACQUIRE_LOCK` rather than corrupting anything. Two
+  further protections also hold — `disableTransactions` defaults to false and **no migration in
+  this repo opts out**, so on Postgres a failed migration rolls itself back cleanly and leaves
+  the database partially migrated rather than half-applied. So the reason to keep migrations
+  out of the entrypoint is not corruption; it is that schema change should be a deliberate,
+  observed step with a dump taken immediately before it, not a side effect of a container
+  restart.
+
+  **What this task must therefore produce:**
+
+  1. Document `node ace migration:run --force` **explicitly, never the bare form**, with the
+     silent-no-op reason written beside it so nobody "cleans up" the flag.
+  2. Verify by counting — `select count(*) from adonis_schema` should be 55 — **not** by exit
+     code, which is 0 either way.
+  3. Take a `pg_dump` immediately before migrating. That dump, plus T7.4's previous image tag,
+     *is* the recovery path.
+  4. State plainly that **`migration:rollback` is not the rollback procedure.** If it is ever
+     used deliberately it must carry an explicit `--batch` or `--step`; the bare form on a
+     single-batch database is indistinguishable from dropping the schema.
+  5. Keep `migration:fresh`, `migration:reset` and `migration:refresh` out of the documentation
+     entirely. They are one word from `run`, `fresh` drops every table, and nothing in the repo
+     references any of them today — leave it that way.
+
+  Note also that pg-boss creates its `pgboss` schema at runtime, outside the migration system,
+  so a rollback removes the application schema while leaving the job schema in place.
 
 - [ ] **T4.4 — Settle the reminder worker topology.** `bin/server.ts` starts the pg-boss worker
   in-process on boot unless `REMINDER_WORKER_ENABLED=false`. For a single instance, leave it on.
