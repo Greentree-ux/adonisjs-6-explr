@@ -79,10 +79,44 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   /*
   |----------------------------------------------------------
-  | Variables for background reminder worker startup
+  | Background reminder worker
   |----------------------------------------------------------
+  |
+  | Whether this process starts the pg-boss worker at boot. The deployed
+  | topology is a single application instance with the worker enabled, so the
+  | default is true and there is normally no reason to set this.
+  |
+  | Validated rather than read as a loose string. It was previously compared
+  | with `!== 'false'`, which meant "FALSE", "0", "no" and "off" all quietly
+  | ENABLED the worker — the opposite of what someone writing them intends,
+  | and invisible, because an extra worker looks exactly like a working one.
+  |
+  | Note that this only governs the worker's startup at boot. It is not a
+  | guarantee that the process never becomes a worker: ReminderService.start()
+  | is also reachable lazily when a request enqueues a reminder. See the
+  | "Background jobs" section of the README before planning more than one
+  | instance.
+  |
   */
-  REMINDER_WORKER_ENABLED: Env.schema.string.optional(),
+  REMINDER_WORKER_ENABLED: (key, value) => {
+    const normalised = value?.trim().toLowerCase()
+
+    if (normalised === undefined || normalised === '') {
+      return true
+    }
+
+    if (normalised === 'true') {
+      return true
+    }
+
+    if (normalised === 'false') {
+      return false
+    }
+
+    throw new Error(
+      `Invalid environment variable "${key}". Expected "true" or "false", received "${value}".`
+    )
+  },
 
   /*
   |----------------------------------------------------------

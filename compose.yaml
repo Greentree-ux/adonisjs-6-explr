@@ -105,6 +105,14 @@ services:
 
   # ---------------------------------------------------------------------------
   # The application (T4.1's Dockerfile).
+  #
+  # EXACTLY ONE INSTANCE. Do not add `deploy: replicas:` or scale this service
+  # (T4.4). The pg-boss reminder worker runs in-process, so every replica
+  # becomes a worker and reminder delivery starts depending on which replicas
+  # happen to be up. REMINDER_WORKER_ENABLED=false is NOT a way around this:
+  # it only skips the worker's startup at boot, and the enqueue path starts one
+  # lazily on the first reminder a request writes. Splitting web from worker
+  # needs a code change first — see "Background jobs" in the README.
   # ---------------------------------------------------------------------------
   app:
     build:

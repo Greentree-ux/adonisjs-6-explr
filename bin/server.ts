@@ -36,9 +36,8 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
     })
     app.booted(async () => {
       const { default: env } = await import('#start/env')
-      const reminderWorkerEnabled = (env.get('REMINDER_WORKER_ENABLED') ?? 'true') !== 'false'
 
-      if (!reminderWorkerEnabled) {
+      if (!env.get('REMINDER_WORKER_ENABLED')) {
         return
       }
 
@@ -46,13 +45,16 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
       await ReminderService.start()
     })
     app.terminating(async () => {
-      const { default: env } = await import('#start/env')
-      const reminderWorkerEnabled = (env.get('REMINDER_WORKER_ENABLED') ?? 'true') !== 'false'
-
-      if (!reminderWorkerEnabled) {
-        return
-      }
-
+      /**
+       * Deliberately not gated on REMINDER_WORKER_ENABLED. That flag only
+       * decides whether the worker is started at BOOT; ReminderService.start()
+       * is also reached lazily when a request enqueues a reminder, so a process
+       * booted with the worker disabled can still be holding a live pg-boss
+       * instance by the time it is asked to shut down. Gating the shutdown on
+       * the flag left exactly that instance to be torn down by process exit
+       * instead of stopped cleanly. stop() is a no-op when there is nothing
+       * running.
+       */
       const { default: ReminderService } = await import('#services/reminder_service')
       await ReminderService.stop()
     })

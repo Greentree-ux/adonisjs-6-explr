@@ -696,12 +696,66 @@ the server cannot substitute its own.
   count. Not abstracted, because T6.4 is still an open decision and guessing at its shape would
   have meant writing untested code.
 
-- [ ] **T4.4 — Settle the reminder worker topology.** `bin/server.ts` starts the pg-boss worker
-  in-process on boot unless `REMINDER_WORKER_ENABLED=false`. For a single instance, leave it on.
-  For more than one, set it `false` on web instances and run one dedicated worker container.
-  pg-boss locks jobs so duplicates will not double-fire, but a worker in every replica makes
-  reminder delivery depend on how many replicas happen to be up.
-  *Done when:* the intended topology is written down and the variable is set to match.
+- [x] **T4.4 — Settle the reminder worker topology.** ✅ Done 2026-09-30.
+  **Decision: exactly one application instance, worker enabled.** `compose.yaml` runs a single
+  `app` service and `REMINDER_WORKER_ENABLED=true` in both templates, which matches. Written up
+  in a rewritten **Background jobs** section of the README, and — more usefully — as a comment
+  on the `app` service itself, which is where someone would go to add `deploy: replicas:`.
+
+  ⚠️ **This task's own recommendation does not work, and that is the main finding.** The
+  description says that for more than one instance you set `REMINDER_WORKER_ENABLED=false` on
+  web instances and run one dedicated worker container. **That flag is not an off switch.** It
+  only decides whether the worker starts *at boot*:
+
+  ```
+  bin/server.ts  app.booted()  →  ReminderService.start()          gated by the flag
+  controller     scheduleReminder() → enqueueReminder()
+                                 →  await this.start()             NOT gated
+                                 →  boss.work(queueName, handler)  ← registers a worker
+  ```
+
+  `enqueueReminder` calls `start()` itself, and `start()` registers a consumer with
+  `boss.work()`. So a "web" instance booted with the flag false becomes a worker the first time
+  a request schedules a reminder — reached from
+  `development_planner_controller.ts:1368`. You would end up with one worker per instance that
+  has ever written a reminder: precisely the situation the flag was supposed to prevent, and
+  silent, because an extra worker looks exactly like a working one.
+
+  Supporting a web/worker split needs a change in `app/services/reminder_service.ts`:
+  separate *connecting* to pg-boss (needed by anything that enqueues) from *registering a
+  consumer* (`boss.work()`, wanted on one instance only), then have `bin/server.ts` always do
+  the former and the latter only when the flag is set. Not done here — the deployed topology is
+  a single instance, so it would be untested code for a configuration nobody is running. It is
+  written down in the README instead, next to the reason.
+
+  **Two defects fixed rather than just described.**
+
+  1. ⚠️ **The flag silently meant the opposite of what was written.** It was read as
+     `(env.get(...) ?? 'true') !== 'false'`, so `FALSE`, `0`, `no` and `off` all **enabled** the
+     worker. Someone disabling it in the most natural way would have got the thing they were
+     turning off. It is now validated in `start/env.ts` like the rest of Phase 3's variables:
+     `true`/`false` only (trimmed, case-insensitive), defaulting to true, anything else refuses
+     to boot naming the variable and the value received.
+  2. **Shutdown was gated on the same flag**, so a process booted with the worker "disabled"
+     that had lazily started one would never call `ReminderService.stop()` — the pg-boss
+     instance was left to process exit rather than stopped cleanly. `app.terminating` now stops
+     unconditionally; `stop()` is already a no-op when nothing is running.
+
+  *Done when:* the intended topology is written down and the variable is set to match. —
+  verified against the container, not by inspection:
+
+  | case | result |
+  |---|---|
+  | `REMINDER_WORKER_ENABLED=maybe` | **refuses to boot**, exit 1, message names the variable and the received value |
+  | `REMINDER_WORKER_ENABLED=FALSE` | worker **not** started, no `pgboss` schema created — previously this would have enabled it |
+  | `REMINDER_WORKER_ENABLED=true` | `pg-boss worker started`, `pgboss` schema created |
+  | SIGTERM with the worker running | `pg-boss worker stopped` logged, container exits in 0.93 s |
+  | development `.env` (variable absent) | resolves to boolean `true` — local behaviour unchanged |
+
+  The last row is the standing constraint: the dev `.env` does not set this variable at all, so
+  the new validator returns its default and `npm run dev` is unaffected. T5.4 re-checks it.
+
+  **Phase 4 is complete.**
 
 ## Phase 5 — Prove parity (THE GATE — do not pass with failures)
 

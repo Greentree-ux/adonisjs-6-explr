@@ -148,10 +148,39 @@ then confirm the applied count matches the migration files in the image —
 
 ## Background jobs
 
-The reminder worker runs in-process via `bin/server.ts`, using pg-boss. Set
-`REMINDER_WORKER_ENABLED=false` to disable it — required on every web instance
-if you ever run more than one, with a single dedicated worker container
-instead.
+Development-plan reminders are delivered by a pg-boss worker that runs
+**in-process**, started from `bin/server.ts` when `REMINDER_WORKER_ENABLED` is
+true (the default). pg-boss owns its own `pgboss` schema, created at runtime
+and outside the migration system.
+
+### The deployed topology: exactly one application instance
+
+`compose.yaml` runs a single `app` service with the worker enabled, and that
+is the intended shape. Keep `REMINDER_WORKER_ENABLED=true`.
+
+**Do not scale `app` to more than one replica.** pg-boss locks jobs, so
+reminders would not be delivered twice, but every replica would register as a
+worker and delivery would depend on which replicas happen to be up. More
+importantly, the obvious fix does not work — see below.
+
+### Why you cannot currently split web and worker processes
+
+The natural multi-instance layout is `REMINDER_WORKER_ENABLED=false` on the web
+instances plus one dedicated worker container. **That does not work today, and
+the failure is silent.**
+
+`REMINDER_WORKER_ENABLED` only decides whether the worker starts *at boot*. The
+enqueue path calls `ReminderService.start()` itself, and `start()` registers a
+worker with `boss.work()`. So a web instance booted with the flag false becomes
+a worker the first time a request schedules a reminder — you would get one
+worker per instance that has ever written a reminder, which is the situation
+the flag was meant to prevent.
+
+Supporting that topology needs a code change in
+`app/services/reminder_service.ts`: separate connecting to pg-boss (needed by
+any instance that enqueues) from registering a consumer (`boss.work()`, wanted
+on one instance only), and have `bin/server.ts` always do the former and the
+latter only when the flag is set. Until that exists, run one instance.
 
 ## Tests
 
