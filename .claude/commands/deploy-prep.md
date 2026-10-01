@@ -819,12 +819,79 @@ involved. Failures here are cheap; the same failures after cutover are not.
   routes behind `middleware.forceChangePassword()` will redirect until it is changed — worth
   knowing before T5.3 reads a redirect as a failure.
 
-- [ ] **T5.2 — Restore the real data and check the views.** Load the T0.2 dump into the
-  container's Postgres, then confirm `fn_fnroles`, `roletasksets` and `roleskills` return 4,
-  144 and 116 rows for `fnid=3`, and that a Chemical–Trombay role renders in the UI. The three
-  materialized views are the app's read path for competency data — a restore that omits them
-  leaves the API returning empty results with no error.
-  *Done when:* counts match and the Lead Associate role displays its 31 tasksets.
+- [x] **T5.2 — Restore the real data and check the views.** ✅ Done 2026-10-01. Verified the
+  T0.2 dump's checksum first (`sha256sum -c` → OK), stopped the app so nothing could write
+  mid-restore, dropped the `public` and `pgboss` schemas, and ran
+  `pg_restore --no-owner --no-privileges` into the container's Postgres. **Exit 0, no errors
+  on output.**
+
+  Checked the dump's table of contents *before* restoring, because this task's warning is
+  precisely that a restore can omit the views: all three appear both as `MATERIALIZED VIEW`
+  and as `MATERIALIZED VIEW DATA` entries, which is the refresh step that populates them.
+
+  | inventory | T0.2 recorded | restored here |
+  |---|---|---|
+  | public tables | 34 | **34** |
+  | materialized views | 3 | **3** |
+  | `pgboss` tables | 8 | **8** |
+  | `adonis_schema` rows | 55 | **55** |
+
+  *Done when:* counts match and the Lead Associate role displays its 31 tasksets. — both:
+
+  | check | expected | result |
+  |---|---|---|
+  | `fn_fnroles` where fnid=3 | 4 | **4** |
+  | `roletasksets` where fnid=3 | 144 | **144** |
+  | `roleskills` where fnid=3 | 116 | **116** |
+  | `users` / `emp_data` / `tasksets` | 16 / 106 / 400 | **16 / 106 / 400** |
+
+  **Lead Associate, through Caddy over HTTPS with a real session** —
+  `GET /api/fnfnroles/3/4` returned 200 with `fnName: "Chemical - Trombay"`,
+  `roleName: "Lead Associate"`, and **31 distinct tasksets**. `GET /api/fnfnroles` returned 10
+  roles including all four Chemical–Trombay ones, which is the list the UI loads first.
+
+  **Worth pinning down, because the raw number looks wrong:** the endpoint returns **36 rows**,
+  not 31. `roletasksets` carries one row per sub-function × taskset — Lead Associate spans 6
+  sub-functions — and **5 of those rows have a NULL `taskset`**. So 36 rows − 5 null = 31
+  distinct tasksets, which is the figure this task names. SQL's `count(distinct taskset)` and
+  the API payload agree on 31; they only disagree with a naive row count. (55 rows across the
+  whole matview have a null taskset, so this is a property of the source data, not of this
+  role.)
+
+  ⚠️ **Verified through the API, not through a browser.** No browser automation is available
+  in this environment, so "displays" was checked by calling the exact endpoints the Angular app
+  calls, over HTTPS through the proxy, with a logged-in session — the app's real read path end
+  to end. Pixels were not inspected.
+
+  ⚠️ **Finding for T7.1: three sequences sit behind their table's maximum id.**
+
+  | sequence | last_value | max(id) |
+  |---|---|---|
+  | `fn_cats_id_seq` | 1 | 7 |
+  | `ks_cats_id_seq` | 1 | 9 |
+  | `wlevels_id_seq` | 1 | 12 |
+
+  29 of 32 sequences are correct. **This is not a restore defect** — the development database
+  is byte-for-byte in the same state, which is itself the proof that the restore was faithful
+  rather than lossy. It is pre-existing: those three reference tables were populated with
+  explicit ids by the competency import and never through their sequences, so the next insert
+  Lucid makes into any of them asks for id 1 and hits a duplicate key violation. **T7.1 loads
+  more workbooks into exactly these tables.** The fix is a `setval` per sequence, deliberately
+  not applied here — it is a change to real data that belongs with the import work, not
+  smuggled into a verification step.
+
+  **Two things T5.3 needs to know.**
+  1. The dump **already contains `sysadmin@example.com`** (id 11, created 2026-04-10), so
+     re-running `role_seeder` *updated* that account rather than inserting one — `users` stayed
+     at 16. It did add one `cos` row, so the container has 3 where development has 2.
+  2. The account's password is now **`Parity@Test456`** and `mustChangePassword` is cleared.
+     T5.1's warning proved real: the protected competency routes returned
+     **403 `E_MUST_CHANGE_PASSWORD`** until the password was changed, which is
+     `middleware.forceChangePassword()` working correctly, not a failure.
+
+  **The development database stayed untouched** throughout: `users` 16, `cos` 2,
+  `roleskills` for fnid=3 still 116 on `127.0.0.1:5432`, and the dev `.env` md5 unchanged.
+  The stack is left running for T5.3.
 
 - [ ] **T5.3 — Exercise the paths that only break in production.** Over HTTPS through the proxy:
   log in and confirm the session survives a redirect; submit a form that trips CSRF, since
