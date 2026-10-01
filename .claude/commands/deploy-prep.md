@@ -762,10 +762,62 @@ the server cannot substitute its own.
 Everything so far is verified on this machine, against the real data, before a server is
 involved. Failures here are cheap; the same failures after cutover are not.
 
-- [ ] **T5.1 — Run the image against a throwaway Postgres 16.** Bring up the compose stack
-  locally on non-conflicting ports, run migrations, create a sysadmin. The development database
-  on `127.0.0.1:5432` stays untouched.
+- [x] **T5.1 — Run the image against a throwaway Postgres 16.** ✅ Done 2026-10-01. Stack up on
+  **8080/8443** (`CADDY_HTTP_PORT` / `CADDY_HTTPS_PORT` in `.env.docker`), migrations applied
+  with `scripts/migrate.sh` from T4.3 (0 → **55**, its own count check passing), sysadmin
+  created, and the full path exercised through Caddy over HTTPS.
+
+  ⚠️ **The gate earned its place immediately: creating the sysadmin failed.**
+  `database/seeders/role_seeder.ts` — the project's only bootstrap path, which seeds the three
+  app roles and the first `sysadmin@example.com` account — died on a fresh database with:
+
+  ```
+  insert into "emp_data" ... - null value in column "co_id" of relation "emp_data"
+                               violates not-null constraint
+  ```
+
+  A later migration made `emp_data.co_id` **NOT NULL with a foreign key to `cos`**, and the
+  seeder was never updated, so the first employee record cannot exist before an organisation
+  does. This never showed up in development because that database already had its rows from
+  before the constraint landed — it only fails on a database created from scratch, which is
+  **exactly and only what a production cutover is**. The symptom would have arrived at the
+  worst possible moment: a freshly provisioned server with no way to log in.
+
+  Fixed in the seeder: it now creates (or reuses) a `Bootstrap Organisation` row and attaches
+  the sysadmin's `emp_data` to it. The name is deliberately obvious placeholder text, since
+  real organisations arrive through the application and the competency imports (T7.1).
+  `users.co_id` is left null on purpose — that column *is* nullable, and a `sys_admin` is not
+  scoped to one organisation.
+
   *Done when:* the containerized app serves the Angular UI and a login succeeds over the proxy.
+  — both verified against the container through Caddy, never against the dev server:
+
+  | check | result |
+  |---|---|
+  | Angular UI over HTTPS | 200, HTTP/2, **certificate validated against Caddy's internal CA** (`ssl_verify_result=0`), `<title>Web</title>` |
+  | bundle the page references | `main-WI4F6RS4.js`, 200, 558,213 bytes through the proxy |
+  | migrations | `scripts/migrate.sh` → 0 → 55, verified by count |
+  | sysadmin created | `sys_admin` role, bootstrap org, `emp_data` row |
+  | **login over the proxy** | **200**, `{"role":"sys_admin","mustChangePassword":true}` |
+  | session cookie | `adonis-session` set **Secure + HttpOnly**, plus `XSRF-TOKEN` |
+  | session round-trip | `GET /api/auth/me` with the jar → **200**, returns the user |
+  | control, no cookie | same request → **401** |
+  | Caddy in the path | the login request appears in Caddy's access log |
+
+  That control row is what makes the round-trip mean anything: without it, a 200 could simply
+  be an unauthenticated endpoint. 401 without the cookie and 200 with it proves the session
+  genuinely survived the proxy.
+
+  **The development database stayed untouched**, as required: `users` still 16 and `cos` still
+  2 on `127.0.0.1:5432`, and the dev `.env` md5 unchanged across the whole exercise. The
+  container's Postgres is never published to the host, so the two cannot be confused.
+
+  **Note for T5.2 and T5.3: the stack is left running.** Phase 5 continues against it —
+  tearing it down would mean re-migrating for no reason. Bring it down with
+  `docker compose --env-file .env.docker down -v` when Phase 5 is finished. The sysadmin
+  password is the seeder's `Change@Me123` and the account carries `mustChangePassword`, so
+  routes behind `middleware.forceChangePassword()` will redirect until it is changed — worth
+  knowing before T5.3 reads a redirect as a failure.
 
 - [ ] **T5.2 — Restore the real data and check the views.** Load the T0.2 dump into the
   container's Postgres, then confirm `fn_fnroles`, `roletasksets` and `roleskills` return 4,
