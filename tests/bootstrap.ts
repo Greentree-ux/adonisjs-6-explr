@@ -23,7 +23,26 @@ export const plugins: Config['plugins'] = [assert(), pluginAdonisJS(app)]
  */
 export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
   setup: [],
-  teardown: [],
+  teardown: [
+    /**
+     * Stop the pg-boss reminder worker, or the suite passes and then hangs
+     * forever instead of exiting.
+     *
+     * Nothing here starts the worker on purpose. ReminderService.start() is
+     * reached lazily from the enqueue path, so any test that schedules a
+     * reminder leaves a supervised pg-boss instance holding a database
+     * connection, and "forceExit: false" in adonisrc.ts means Japa waits for
+     * the event loop to drain. The worker's own startup log arrives AFTER the
+     * results summary, which is what makes this confusing to diagnose: the run
+     * reports "PASSED" and then sits there.
+     *
+     * stop() is a no-op when no worker was started.
+     */
+    async () => {
+      const { default: ReminderService } = await import('#services/reminder_service')
+      await ReminderService.stop()
+    },
+  ],
 }
 
 /**

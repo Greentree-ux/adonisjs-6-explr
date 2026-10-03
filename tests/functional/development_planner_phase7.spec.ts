@@ -615,6 +615,7 @@ async function createScenario() {
   await EmpData.create({
     id: managerEmpDataId,
     email: managerEmail,
+    coId: companyId,
     firstName: 'Manager',
     lastName: 'User',
     empId: managerEmpId,
@@ -624,6 +625,7 @@ async function createScenario() {
   await EmpData.create({
     id: employeeEmpDataId,
     email: employeeEmail,
+    coId: companyId,
     firstName: 'Employee',
     lastName: 'User',
     empId: employeeEmpId,
@@ -634,6 +636,7 @@ async function createScenario() {
   const manager = await User.create({
     id: managerUserId,
     approleId: appRoleId,
+    coId: companyId,
     fnroleId: managerFnRoleId,
     firstName: 'Manager',
     lastName: 'User',
@@ -646,6 +649,7 @@ async function createScenario() {
   const employee = await User.create({
     id: employeeUserId,
     approleId: appRoleId,
+    coId: companyId,
     fnroleId: null,
     firstName: 'Employee',
     lastName: 'User',

@@ -1065,11 +1065,68 @@ involved. Failures here are cheap; the same failures after cutover are not.
   one-off. **State now: containers stopped, host Mailpit running, the developer's original
   `npm run dev` still running.** T5.5 (`node ace test`) needs none of the containers.
 
-- [ ] **T5.5 — Run the test suite, and know what it does not cover.** `node ace test` runs two
-  functional spec files. Treat it as a smoke check, not a safety net — nothing covers the
-  competency import, the materialized views or the reminder worker, so T5.2 and T5.3 do the
-  real verification.
-  *Done when:* the suite passes and its limits are recorded in the README.
+- [x] **T5.5 — Run the test suite, and know what it does not cover.** ✅ Done 2026-10-03. The
+  suite now passes — **4 tests, 2 functional spec files, ~8 s, exit 0, repeatable** — and its
+  limits are written up in the README's rewritten **Tests** section.
+
+  ⚠️ **It did not pass when I started. All 4 tests failed**, and the suite had clearly been
+  broken for some time: its fixtures predate two schema changes, in exactly the way T5.1's
+  seeder did.
+
+  | failure | cause |
+  |---|---|
+  | `null value in column "co_id" of relation "emp_data"` | the scenario builds a `cos` row but never passed `coId` to `EmpData.create` — **the same defect as T5.1's `role_seeder`** |
+  | `No active performance-learning period is configured for this company` | misleading message. `getCurrentPeriodForUser` returns null **only when `user.coId` is falsy**, and auto-creates a period otherwise. The real cause was `User.create` not setting `coId` either |
+
+  Both fixed in both spec files (4 sites each). Worth noting that the second error names a
+  missing learning period, which is not what was wrong — the period would have been created
+  automatically had the user been attached to a company.
+
+  ⚠️ **Then the suite passed and refused to exit.** Not a hang during the run: it printed
+  `PASSED / Tests 4 passed (4) / Time 3s` and then sat there indefinitely. The giveaway was the
+  **last line of the log, written after the summary**:
+
+  ```
+  [ReminderService] pg-boss worker started
+  ```
+
+  This is T4.4's lazy worker again. No test starts the worker deliberately; the enqueue path
+  calls `ReminderService.start()` itself, so the reminder test leaves a supervised pg-boss
+  instance holding a database connection, and `forceExit: false` in `adonisrc.ts` makes Japa
+  wait for the event loop to drain. **In CI that is a green suite that never finishes** — the
+  worst shape, since the job burns its timeout and the result looks like infrastructure
+  flakiness rather than a code problem.
+
+  Diagnosing it took two wrong turns worth recording: a global count of
+  `adonisjs-6-explr-reminder-worker` connections is **useless here**, because the long-running
+  dev server holds several of its own, and the parent `node ace test` process holds no
+  connections at all — the child (`bin/test.js`) does. Attributing handles to the child pid is
+  what settled it.
+
+  Fixed with a `runnerHooks.teardown` in `tests/bootstrap.ts` that calls
+  `ReminderService.stop()` — closing the resource rather than papering over it with
+  `forceExit: true`. The run now ends with `pg-boss worker stopped` and exits 0.
+
+  *Done when:* the suite passes and its limits are recorded in the README. — both. The README
+  now separates what the suite covers, what it does not, and what to know before running it.
+  **The sharpest limit is recorded in its own words:** there is a test named *"reminder
+  sequences and csv export"*, and it passed throughout the entire period when every reminder
+  job failed at delivery (T5.3). It checks sequencing and formatting, never that the worker can
+  send. Nothing in the suite touches the competency import or the three materialized views
+  either, so a restore that leaves them empty would not fail a single test — which is exactly
+  why T5.2 and T5.3 do the real verification.
+
+  Also recorded: there is **no `.env.test`**, so the suite runs against whatever `.env` points
+  at, normally the development database. Each test is wrapped in a global transaction and rolls
+  back — verified, all four table counts identical before and after three consecutive runs —
+  though id sequences still advance, since `nextval` is not transactional. The `unit` suite is
+  configured in `adonisrc.ts` but has no test files.
+
+  **Phase 5 is complete — the parity gate passed with no outstanding failures.** Across it the
+  gate caught four real defects that development had never surfaced: the seeder's missing
+  `co_id` (T5.1), the `planId` foreign key that broke every reminder delivery (T5.3), and these
+  two fixture faults plus the non-exiting suite. All were production- or
+  fresh-database-only — none would have appeared before cutover.
 
 ## Phase 6 — Provision the server
 

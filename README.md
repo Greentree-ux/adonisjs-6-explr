@@ -185,12 +185,47 @@ latter only when the flag is set. Until that exists, run one instance.
 ## Tests
 
 ```bash
-node ace test
+node ace test        # 4 tests, two functional spec files, ~8s
 ```
 
-Coverage is thin: two functional spec files for the development planner.
-Nothing covers the competency import, the materialized views or the reminder
-worker, so treat a green run as a smoke check rather than a safety net.
+**Treat a green run as a smoke check, not a safety net.** The suite is small
+and its blind spots are large, so what it does *not* cover matters more than
+what it does.
+
+### What it covers
+
+Two functional spec files, both exercising the development planner through
+real HTTP requests: manager overwrite and stage-5 approval, employee re-edit
+triggering re-review, plan isolation across employees and managers, access
+scoped to direct reports, and the formatting of reminder sequences and the CSV
+export.
+
+### What it does not cover
+
+- **The competency import** — the path that produces nearly all the data.
+- **The three materialized views** (`fn_fnroles`, `roletasksets`,
+  `roleskills`), which are the application's entire read path for competency
+  data. A restore that silently leaves them empty would not fail a single test.
+- **Reminder delivery.** This is the sharp one. There is a test named
+  *"reminder sequences and csv export"*, and it passed throughout a period when
+  **every reminder job failed at delivery** — the test checks sequencing and
+  formatting, never that the worker can actually send. The bug was found by
+  running the worker against a real queued job, not by the suite.
+- Authentication, password reset, CSRF, migrations, and the `unit` suite, which
+  is configured in `adonisrc.ts` but has no test files.
+
+### Things to know before running it
+
+- **There is no `.env.test`**, so the suite runs against whatever `.env` points
+  at — normally your development database. Each test is wrapped in a global
+  transaction and rolls back, so rows do not survive, but id sequences still
+  advance (`nextval` is not transactional).
+- The suite starts the pg-boss reminder worker indirectly, because the enqueue
+  path starts one lazily. A teardown hook in `tests/bootstrap.ts` stops it.
+  Without that hook the run reports `PASSED` and then hangs forever, since
+  `adonisrc.ts` sets `forceExit: false` and the worker keeps the event loop
+  alive. If you ever see a green run that will not exit, that hook is the first
+  place to look.
 
 ## Configuration
 
