@@ -997,11 +997,73 @@ involved. Failures here are cheap; the same failures after cutover are not.
   database was untouched throughout. **The stack and the Mailpit container are left running**
   for T5.4/T5.5; note that `.env.docker` now points `SMTP_HOST` at `mailpit`.
 
-- [ ] **T5.4 — Confirm local development still works.** Stop the containers, run `npm run dev`
-  as before against local Postgres and Mailpit, walk the same four paths from T5.3. Doing this
-  after containerizing rather than before is what catches an environment default that quietly
-  assumed the container.
-  *Done when:* the local workflow is identical to what it was before T0.1.
+- [x] **T5.4 — Confirm local development still works.** ✅ Done 2026-10-03. Stopped the Compose
+  stack and the container Mailpit, started host Mailpit (`mailpit --smtp 127.0.0.1:1025`), and
+  walked the four T5.3 paths against `npm run dev` on `http://localhost:3333` with local
+  Postgres on `127.0.0.1:5432`.
+
+  **The strongest evidence turned up by accident.** A `npm run dev` had been running
+  **continuously since 28 September** — before Phase 2 — and it is still serving. Its child
+  process restarted at `11:43:07`, the exact moment the T5.3 model fix was written, so it has
+  hot-reloaded its way through every change in Phases 1–5 and still works. A *fresh*
+  `npm run dev` was also started and booted cleanly in 1.17 s with the pg-boss worker up; it
+  only picked a different port because 3333 was already taken, and was then stopped so the
+  developer's original process was left as found.
+
+  | path | result |
+  |---|---|
+  | **1. login + session** | 200 over plain HTTP; `GET /api/auth/me` 200 with the cookie, **401 without** |
+  | **2. CSRF** | `/api/` POST with no token → 200, the same exemption behaviour as the container |
+  | **3. password reset link** | `http://localhost:3333/reset-password?token=…`, no doubled slash; token **used end to end**, reset 200, subsequent login 200 |
+  | **4. reminder** | scheduled, delivered **in under 5 s**, pg-boss job `completed`, mail in Mailpit |
+
+  *On path 1:* "survives a redirect" has no local analogue — there is no TLS proxy and so no
+  HTTP→HTTPS redirect. What was verified instead is the thing the redirect was testing: the
+  session persists across requests, and the cookie is correctly **not** `Secure` locally
+  (`secure: app.inProduction` is false) where it *was* `Secure` in the container. That
+  difference is the configuration working as designed, not drift.
+
+  *On path 2:* unchanged from T5.3 — the exemption behaves as configured, and still no route
+  exists that could trip CSRF.
+
+  **The real question this task asks is whether anything now quietly assumes the container.
+  Nothing does, and here is the proof:** `start/env.ts` validates **23** variables and the dev
+  `.env` sets only **14**. All **9** absent ones fall back to pre-containerisation behaviour,
+  and every one of them was exercised in this run rather than assumed:
+
+  | absent variable | observed fallback |
+  |---|---|
+  | `APP_URL` | `http://localhost:3333` — seen in the delivered reset link |
+  | `APP_TIMEZONE` / `REMINDER_SEND_HOUR` | `Asia/Kolkata` / `9` — anchored `2026-06-15` to `03:30Z` |
+  | `REMINDER_WORKER_ENABLED` | true — worker started, reminder delivered |
+  | `TRUST_PROXY` | `loopback` — app boots, no proxy present |
+  | `SMTP_USERNAME` / `SMTP_PASSWORD` | unset — unauthenticated Mailpit accepted the mail |
+  | `MAIL_FROM_ADDRESS` / `MAIL_FROM_NAME` | fallback `noreply@example.com` — seen on the message |
+
+  **Timezone refinement to T3.5.** That task cautioned that `TZ` in `.env` is loaded after Node
+  starts and so is "platform-dependent". On this toolchain it demonstrably *does* take effect:
+  the host system zone is `Asia/Kolkata`, yet the dev process reports
+  `EFFECTIVE_ZONE=UTC, offset 0`. Dev and container therefore agree at UTC. Keeping `TZ` in the
+  container environment as well (T3.5, T4.1) remains the right belt-and-braces.
+
+  One rendering difference, expected and harmless: psql against the dev database prints
+  `2026-06-05 05:30:00+05:30` where the container prints `2026-06-05 00:00:00+00`. Same
+  instant — the dev database's session zone is `Asia/Kolkata` while T4.2 set the container's to
+  UTC deliberately. Exactly the confusion T3.4 predicted and T4.2 removed for the deployment.
+
+  *Done when:* the local workflow is identical to what it was before T0.1. — yes. No new
+  required variable, no new step, no container dependency; the same two commands
+  (`mailpit`, `npm run dev`) against the same local Postgres.
+
+  **The development database was returned to its exact baseline.** A disposable account
+  (`t54-check@example.com`) was created rather than changing any existing password — the dev
+  `sysadmin` password is not the seeder default, and resetting a real account's credentials to
+  run a test would have been a poor trade. Counts before and after are identical: users 16,
+  emp_data 106, dp_reminders 2, password_resets 1, pgboss jobs 0.
+
+  Housekeeping: removed an orphaned `fcm-app-run-…` container left behind by T5.3's hung
+  one-off. **State now: containers stopped, host Mailpit running, the developer's original
+  `npm run dev` still running.** T5.5 (`node ace test`) needs none of the containers.
 
 - [ ] **T5.5 — Run the test suite, and know what it does not cover.** `node ace test` runs two
   functional spec files. Treat it as a smoke check, not a safety net — nothing covers the
