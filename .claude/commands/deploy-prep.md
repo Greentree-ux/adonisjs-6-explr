@@ -893,12 +893,109 @@ involved. Failures here are cheap; the same failures after cutover are not.
   `roleskills` for fnid=3 still 116 on `127.0.0.1:5432`, and the dev `.env` md5 unchanged.
   The stack is left running for T5.3.
 
-- [ ] **T5.3 — Exercise the paths that only break in production.** Over HTTPS through the proxy:
-  log in and confirm the session survives a redirect; submit a form that trips CSRF, since
-  `config/shield.ts` exempts only routes starting `/api/`; trigger a password reset and check
-  the emitted link uses `APP_URL`; schedule a reminder and confirm it fires at the intended
-  local time.
-  *Done when:* all four pass against the container, not the dev server.
+- [x] **T5.3 — Exercise the paths that only break in production.** ✅ Done 2026-10-03, all four
+  against the container through Caddy over HTTPS, never the dev server. A Mailpit container was
+  attached to the Compose network and `SMTP_HOST=mailpit` set in `.env.docker` (the local test
+  file only — `compose.yaml` is untouched, since production uses a real relay).
+
+  ⚠️ **This gate found a bug that makes every reminder fail to deliver.** See check 4.
+
+  **1. Session survives a redirect — PASS.** Logged in over HTTPS, then started a request on
+  **plain HTTP** and followed the redirect: Caddy returned **308** to `https://localhost/...`,
+  curl followed it, and the app answered **200** with the authenticated user. The `Secure`
+  cookie was correctly *withheld* on the HTTP hop (which never reached the app) and presented
+  on the HTTPS hop. `adonis-session` is `Secure` + `HttpOnly`.
+
+  *Testing note for whoever repeats this:* `curl --resolve` cannot do this — it refuses a
+  `host:port:addr:port` entry, so the redirect to the canonical `:443` is unreachable when
+  Caddy is published on 8443. `--connect-to localhost:443:127.0.0.1:8443` is the flag that
+  works.
+
+  ⚠️ **2. CSRF — the configured behaviour is correct, but it protects nothing.** The exemption
+  works exactly as written: an `/api/` POST with no CSRF token returns **200**, and shield is
+  armed (an `XSRF-TOKEN` cookie is issued). But the premise of this check — "submit a form that
+  trips CSRF" — **cannot be satisfied, because no such form exists**:
+
+  | | count |
+  |---|---|
+  | routes in total | 40 |
+  | state-changing (POST/PUT/PATCH/DELETE) | 21 |
+  | **state-changing routes NOT under `/api/`** | **0** |
+
+  The only non-`/api/` route in the application is the SPA catch-all `GET /*`. So
+  `exceptRoutes: url.startsWith('/api/')` exempts **21 of 21** state-changing routes and CSRF
+  currently guards nothing. Shield sits in the *router* middleware stack, which runs only on
+  matched routes, so a POST to a non-existent path returns 404 rather than a CSRF error — the
+  mechanism is sound and would engage the moment a non-`/api/` state-changing route is added.
+
+  **What actually protects these routes is `sameSite: 'lax'` on the session cookie**
+  (`config/session.ts`), which stops a cross-site POST from carrying the session at all. That
+  is a real defence, so this is not an open hole — but the protection is the cookie attribute,
+  not shield, and anyone reading `shield.ts` would conclude otherwise.
+
+  **3. Password reset uses `APP_URL` — PASS, end to end.** `POST /api/auth/forgot-password`
+  through the proxy delivered mail from `noreply@fcm.local` (so `MAIL_FROM_ADDRESS` is
+  honoured). The emitted link was
+  `https://localhost:8443/reset-password?token=…&email=…` — the configured `APP_URL` exactly,
+  **no `localhost:3333`, no doubled slash**. Then the link was actually *used*: the token was
+  posted to `/api/auth/reset-password` (200) and a subsequent login with the new password
+  succeeded (200). The link is correct *and* functional, not merely well-formed.
+
+  ⚠️ **4. Reminder fires at the intended local time — PASS, but only after fixing a bug that
+  made delivery impossible.**
+
+  The first scheduled reminder was created and enqueued correctly and then **the job failed**:
+
+  ```
+  E_MISSING_MODEL_ATTRIBUTE: Relation "DpActionPlan.plan" expects "developmentPlanId"
+  to exist on "DpActionPlan" model, but is missing.
+  ```
+
+  `@belongsTo(() => DevelopmentPlan)` was declared with no `foreignKey`. Lucid derives the key
+  from the **related** model's name, giving `developmentPlanId` — but the column is `plan_id`
+  and the models declare `planId`. The worker preloads this relation to find the recipient, so
+  **every reminder job would have failed at delivery**, in production, silently: the row is
+  written, the job is queued, the send throws inside the worker, and nothing in the request
+  path ever notices. Nobody would learn that reminders had never been sent.
+
+  It never surfaced in development because the worker had no jobs to process — exactly the
+  condition T3.4 recorded ("pg-boss has no queued jobs"). Only running the worker against a
+  real enqueued job reveals it, which is this task's entire purpose.
+
+  **The same defect is in five models** — `dp_action_plan`, `dp_other_skill`,
+  `dp_focus_skills_proficiency`, `dp_focus_skills_target`, `dp_target_role` — all declaring
+  `planId` and all relying on the wrong derived key. Only `dp_action_plan.plan` is currently
+  used (by `ReminderService`); the other four are landmines that throw the first time anyone
+  preloads them, and TypeScript cannot catch any of it because the name resolves at runtime.
+  All five now name `foreignKey: 'planId'` explicitly, with the reason in a comment.
+
+  After the fix the reminder delivered **within 5 seconds**: pg-boss job `completed`, mail in
+  Mailpit — *"Development Plan Reminder: Sample dev task"* to the plan owner — and
+  `last_sent_at` written.
+
+  **And it fires at the right local time.** With `TZ=UTC` confirmed inside the container and
+  `APP_TIMEZONE=Asia/Kolkata`, `REMINDER_SEND_HOUR=9`:
+
+  | reminder | `next_scheduled_at` (UTC) | in Asia/Kolkata |
+  |---|---|---|
+  | legacy row 3 | `2026-06-05 00:00:00+00` | **05:30** ← old accidental midnight-UTC anchor |
+  | legacy row 4 | `2026-08-21 00:00:00+00` | **05:30** ← same |
+  | **newly scheduled** | `2026-08-24 03:30:00+00` | **09:00** ✅ |
+
+  That contrast is T3.4's migration note made visible: pre-existing rows keep their old anchor,
+  newly written ones land on the chosen hour. `anchorCalendarDate` was also checked directly in
+  the container — `2026-06-15` → `09:00+05:30` = `03:30Z` with the calendar day kept, and
+  `Europe/London` → `09:00+01:00` = `08:00Z` — reproducing T3.4's host-side table inside the
+  deployed process. **This closes the container half of T3.4, which was explicitly deferred
+  here.**
+
+  *Done when:* all four pass against the container, not the dev server. — 1, 3 and 4 pass; 2's
+  configured behaviour is verified but the check as written is unsatisfiable, recorded above
+  rather than waved through.
+
+  Test rows were removed afterwards (`dp_reminders` back to its restored 2) and the dev
+  database was untouched throughout. **The stack and the Mailpit container are left running**
+  for T5.4/T5.5; note that `.env.docker` now points `SMTP_HOST` at `mailpit`.
 
 - [ ] **T5.4 — Confirm local development still works.** Stop the containers, run `npm run dev`
   as before against local Postgres and Mailpit, walk the same four paths from T5.3. Doing this

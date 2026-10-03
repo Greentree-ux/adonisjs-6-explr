@@ -33,6 +33,13 @@ export default class DpOtherSkill extends BaseModel {
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
 
-  @belongsTo(() => DevelopmentPlan)
+  /**
+   * The foreign key MUST be named explicitly. Lucid derives it from the
+   * RELATED model's name, so the default here is "developmentPlanId", which no
+   * model in this group declares — the column is "plan_id". Without this the
+   * relation throws E_MISSING_MODEL_ATTRIBUTE the first time it is preloaded,
+   * and TypeScript cannot catch it because the name is resolved at runtime.
+   */
+  @belongsTo(() => DevelopmentPlan, { foreignKey: 'planId' })
   declare plan: BelongsTo<typeof DevelopmentPlan>
 }
